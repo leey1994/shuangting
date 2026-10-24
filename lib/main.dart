@@ -39,8 +39,8 @@ Future<void> main() async {
     await JustAudioBackground.init(
       androidNotificationChannelId: 'com.kugou.android.channel.audio',
       androidNotificationChannelName: '爽听播放',
-      androidNotificationOngoing: false,
-      androidStopForegroundOnPause: true,
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: false,
     );
     try {
       final session = await AudioSession.instance;

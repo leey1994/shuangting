@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>扫码结果</title>
+<link rel="dns-prefetch" href="https://login-user.kugou.com/">
+<link rel="preconnect" href="https://login-user.kugou.com">
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+<meta name="format-detection" content="telephone=no"/>
+<meta name="msapplication-tap-highlight" content="no"/>
+<meta http-equiv="Access-Control-Allow-Origin" content="*"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+<meta name="h5NotifyClientLoadComplete" />
+<meta name="h5Use1203HideLoading" />
+
+<script>
+    // 可伸缩布局方案
+    !function (window) {
+        var doc = window.document;
+        var docEl = doc.documentElement;
+        var resizeEvt = 'orientationchange' in window ? 'orientationchange' : 'resize';
+        var html = document.documentElement;
+
+        var recalc = (function refreshRem() {
+            // 720/1200，中间主体内容宽高
+            var minPageHeight = 1200;
+            var designSize = 720; // 设计图尺寸
+            
+            var scale = 1;
+            // 有些浏览器（比如safari）outerHeight跟innerHeight不一样
+            var winW = window.innerWidth || document.documentElement.offsetWidth;
+            var winH = window.innerHeight || document.documentElement.offsetHeight;
+
+            window.screenIsShort = winW / winH > 720 / minPageHeight; // 小于标准高度，这时候要缩放
+
+            if (window.screenIsShort) {
+                scale = (winH * 720) / minPageHeight / winW;
+            }
+            
+            var rem = (winW * 100 / designSize) * scale;
+
+            html.style.fontSize = rem + "px";
+
+            docEl.setAttribute('style', 'font-size: ' + rem + 'px !important');
+            return refreshRem;
+        })();
+
+        if (!doc.addEventListener) return;
+        window.addEventListener(resizeEvt, recalc, false);
+        doc.addEventListener('DOMContentLoaded', recalc, false);
+    }(window);
+</script>
+<link rel="stylesheet" href="../static/css/loginQRCode.v4.min.css?20250311"> 
+</head>
+<body>
+
+<div class="page" id="page_login" style="display: none;">
+    <div class="icon_pc"></div>
+    <p class="txt_title" id="j_txt_title"></p>
+    <p class="txt_tips" id="j_txt_tips">登录确认已失效，请重新扫码登录</p>
+    <div class="txt_msg">
+        <div class="txt_msg_inner" id="j_txt_msg"></div>
+    </div>
+    <div class="btn_ok">
+        <button href="javascript:;" hidefocus="true" class="btn_ok_inner" id="j_btn_ok"></button>
+    </div>
+    <a href="javascript:;" hidefocus="true" class="btn_cancel" id="j_btn_cancle"></a>
+</div>
+
+<div class="page_auth" id="page_auth" style="display: none;">
+    <div class="icon_kg"></div>
+    <div class="cont">
+        <div class="title">同意授权后，第三方将获取以下权限：</div>
+        <div class="txt">
+            <div class="option">· 您的账号信息，如昵称、头像、地区、性别等</div>
+            <div class="option">· 您的酷狗音乐的个人资产，如我喜欢、收藏歌单、听歌时间等</div>
+        </div>
+    </div>
+    <div class="bottom">
+        <button href="javascript:;" hidefocus="true" class="btn_ok_inner" id="j_btn_auth">确认授权</button>
+        <div class="txt">
+            <span id="j_btn_agreement" class="auth_check check_box_o" onclick="taggerAgreement()"></span>
+            <span>同意</span><a class="link" href="javascript:;" onclick="gotoAgreement('https://m3ws.kugou.com/html/service.html')">《用户协议》</a>和<a class="link" href="javascript:;" onclick="gotoAgreement('https://m3ws.kugou.com/html/privacy.html')">《隐私政策》</a>
+        </div>
+    </div>
+</div>
+
+<div class="alert-tips" id="alertTips" style="display: none;">
+    <div class="alert-tips-inner-box">
+        <div class="alert-tips-inner" id="alertTipsInner"></div>
+    </div>
+</div>
+
+<div class="page_loading" id="j_loading"></div>
+
+<script src="../static/js/kGRequest.0.7.4.min.js"></script>
+<script src="../static/js/loginQRCode.v19.min.js"></script>
+</body>
+</html><script src="https://staticssl.kugou.com/common/js/min/shareCheck.min.js" defer></script>

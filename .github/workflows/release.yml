@@ -109,12 +109,20 @@ jobs:
         shell: bash
         run: |
           V="${{ steps.ver.outputs.version }}"
+          # 优先取 CHANGELOG.md 的「## vX.Y.Z」小节（面向用户的更新说明）
           awk -v ver="$V" '$0 ~ ("^## v" ver "([^0-9]|$)") {p=1; next} /^## v/ {p=0} p' CHANGELOG.md > notes.md || true
           if [ ! -s notes.md ]; then
-            echo "自动构建版本 $V。" > notes.md
-            echo "" >> notes.md
-            echo "完整改动见仓库提交记录与 CHANGELOG.md。" >> notes.md
+            # 兜底：用最近一版的 commit 摘要生成用户侧说明
+            PREV=$(git tag --sort=-creatordate | sed -n '2p')
+            {
+              echo "## 本次更新"
+              echo ""
+              git log --oneline "${PREV:-HEAD~10}..HEAD" --no-merges --grep="^chore: release" --invert-grep --pretty="- %s" | head -30
+              echo ""
+              echo "完整说明见 CHANGELOG.md。"
+            } > notes.md
           fi
+          cat notes.md
 
       - name: Tag release commit
         shell: bash

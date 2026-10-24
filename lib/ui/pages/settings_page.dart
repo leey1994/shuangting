@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../data/audio_cache.dart';
 import '../../data/store.dart';
+import '../../player/player_controller.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -32,6 +34,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _refreshCache() {
     setState(() => _cacheSize = context.read<AudioCache>().totalSize());
+  }
+
+  /// 关闭蓝牙歌词时，把 MediaItem 恢复成不含歌词行的原始元数据。
+  Future<void> _restoreMediaItem() async {
+    final p = context.read<PlayerController>();
+    final song = p.current;
+    if (song == null) return;
+    await p.restoreBtLyricMediaItem();
   }
 
   @override
@@ -81,6 +91,16 @@ class _SettingsPageState extends State<SettingsPage> {
                 subtitle: '听过的歌曲自动保存，断网也能继续听',
                 value: settings.autoCache,
                 onChanged: (v) => settings.autoCache = v,
+              ),
+              _SwitchRow(
+                title: '蓝牙歌词',
+                subtitle: '把当前歌词行推送到蓝牙车机/音箱屏幕（AVRCP）',
+                value: settings.btLyric,
+                onChanged: (v) {
+                  settings.btLyric = v;
+                  context.read<PlayerController>().btLyric = v;
+                  if (!v) unawaited(_restoreMediaItem());
+                },
               ),
               _SettingRow(
                 title: '缓存上限',

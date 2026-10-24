@@ -82,6 +82,9 @@ class SettingsModel extends ChangeNotifier {
   bool get desktopLyric => _get('desktopLyric', false);
   set desktopLyric(bool v) => _set('desktopLyric', v);
 
+  bool get btLyric => _get('btLyric', false);
+  set btLyric(bool v) => _set('btLyric', v);
+
   bool get eqEnabled => _get('eqEnabled', false);
   set eqEnabled(bool v) => _set('eqEnabled', v);
 

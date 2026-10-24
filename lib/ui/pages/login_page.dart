@@ -5,8 +5,9 @@ import 'package:provider/provider.dart';
 
 import '../../data/kg_api.dart';
 import '../../data/store.dart';
+import 'web_login_page.dart';
 
-/// 酷狗登录：扫码（主推）/ 手机验证码 / 账号密码 三方式。
+/// 酷狗登录：网页登录（推荐，官方页全方式）/ 扫码 / 手机验证码 / 账号密码。
 /// 验证码与密码链路按参考项目协议实现；上游 2026 年起对第三方客户端启用
 /// SSA 反爬（错误码 20006），失败时给出明确引导文案。
 class LoginPage extends StatefulWidget {
@@ -18,7 +19,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 3, vsync: this);
+  late final TabController _tab = TabController(length: 4, vsync: this);
   Timer? _timer;
   int _gen = 0;
   KgQrSession? _session;
@@ -44,7 +45,7 @@ class _LoginPageState extends State<LoginPage>
     _tab.addListener(() {
       if (_tab.indexIsChanging) return;
       // 离开扫码页时暂停轮询，省流量
-      if (_tab.index != 0) _timer?.cancel();
+      if (_tab.index != 1) _timer?.cancel();
     });
     _newSession();
   }
@@ -215,6 +216,13 @@ class _LoginPageState extends State<LoginPage>
     _toast('已解除账号绑定');
   }
 
+  Future<void> _openWebLogin() async {
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const WebLoginPage()),
+    );
+    if (ok == true && mounted) Navigator.of(context).pop(true);
+  }
+
   Color _dotColor(ColorScheme scheme) => switch (_kind) {
         1 => scheme.primary,
         2 => scheme.tertiary,
@@ -307,35 +315,83 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Widget _manualCookieSection(ColorScheme scheme, bool bound) {
-    return Theme(
-      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-        childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-        title:
-            const Text('高级 · 手工导入 Cookie', style: TextStyle(fontSize: 13)),
-        subtitle: Text(bound ? '当前已绑定' : '当前未绑定',
-            style: const TextStyle(fontSize: 11)),
-        children: [
-          TextField(
-            controller: _cookieCtrl,
-            maxLines: 4,
-            decoration:
-                const InputDecoration(hintText: 'token=...; userid=...;'),
-          ),
-          const SizedBox(height: 10),
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        FilledButton.icon(
+          onPressed: _openWebLogin,
+          style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(48)),
+          icon: const Icon(Icons.language_rounded),
+          label: const Text('网页登录（推荐 · 官方页自动绑定）'),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          bound ? '当前已绑定账号' : '登录成功后自动获取并保存 Cookie，无需手工绑定',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+              fontSize: 11,
+              color: scheme.onSurface.withValues(alpha: 0.45)),
+        ),
+        const SizedBox(height: 8),
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+            childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+            title: const Text('高级 · 手工导入 Cookie',
+                style: TextStyle(fontSize: 13)),
+            subtitle: Text(bound ? '当前已绑定' : '当前未绑定',
+                style: const TextStyle(fontSize: 11)),
             children: [
-              FilledButton.tonal(
-                  onPressed: _saveManual, child: const Text('保存 Cookie')),
-              const SizedBox(width: 10),
-              if (bound)
-                OutlinedButton(
-                    onPressed: _unbind, child: const Text('解除绑定')),
+              TextField(
+                controller: _cookieCtrl,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                    hintText: 'token=...; userid=...;'),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  FilledButton.tonal(
+                      onPressed: _saveManual, child: const Text('保存 Cookie')),
+                  const SizedBox(width: 10),
+                  if (bound)
+                    OutlinedButton(
+                        onPressed: _unbind, child: const Text('解除绑定')),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+
+  Widget _webTab(ColorScheme scheme) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
+      children: [
+        Icon(Icons.language_rounded, size: 56, color: scheme.primary),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _openWebLogin,
+          style:
+              FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          child: const Text('打开酷狗官方登录页'),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '内置浏览器打开酷狗官方统一登录页，官方提供扫码、手机验证码、账号密码等全部登录方式。\n\n'
+          '登录成功后「爽听」会自动获取并保存绑定 Cookie，无需任何手工复制。该方式由酷狗官方页面直接处理，成功率最高。',
+          style: TextStyle(
+              fontSize: 12.5,
+              height: 1.7,
+              color: scheme.onSurface.withValues(alpha: 0.65)),
+        ),
+        const SizedBox(height: 16),
+        _manualCookieSection(scheme, false),
+      ],
     );
   }
 
@@ -446,7 +502,10 @@ class _LoginPageState extends State<LoginPage>
         title: const Text('登录酷狗账号'),
         bottom: TabBar(
           controller: _tab,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
+            Tab(text: '网页登录'),
             Tab(text: '扫码'),
             Tab(text: '验证码'),
             Tab(text: '密码'),
@@ -456,6 +515,10 @@ class _LoginPageState extends State<LoginPage>
       body: TabBarView(
         controller: _tab,
         children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _webTab(scheme),
+          ),
           SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             child: Center(

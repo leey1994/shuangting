@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:audio_service/audio_service.dart' show AudioService;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/audio_cache.dart';
@@ -28,6 +29,7 @@ class PlayerController extends ChangeNotifier {
   );
 
   PlayerController(this.api, this.cache, this.library, this.settings) {
+    btLyric = settings.btLyric;
     _init();
   }
 
@@ -56,6 +58,40 @@ class PlayerController extends ChangeNotifier {
   DateTime? _playStartedAt;
   DateTime _lastSave = DateTime.now();
   bool _completedHandled = false;
+  int _btLyricLine = -2; // 蓝牙歌词：上次推送到 MediaSession 的行号
+
+  /// 蓝牙歌词开关（把当前歌词行写进 MediaSession 元数据，
+  /// 车机/蓝牙设备经 AVRCP 随曲滚动显示）。
+  bool btLyric = false;
+
+  /// 蓝牙歌词：歌词行变化时原位更新 MediaItem（不打断播放）。
+  Future<void> _pushBtLyric() async {
+    if (!btLyric || !Platform.isAndroid) return;
+    final song = current;
+    final doc = lyric;
+    if (song == null) return;
+    final idx = lyricIndex.value;
+    if (idx == _btLyricLine) return;
+    _btLyricLine = idx;
+    final line = (doc == null || idx < 0 || idx >= doc.lines.length)
+        ? ''
+        : doc.lines[idx].text.trim();
+    try {
+      await AudioService.updateMediaItem(_mediaItemOf(song).copyWith(
+        artist: line.isEmpty ? song.artist : '$line · ${song.artist}',
+      ));
+    } catch (_) {}
+  }
+
+  /// 关闭蓝牙歌词后恢复原始 MediaItem。
+  Future<void> restoreBtLyricMediaItem() async {
+    final song = current;
+    if (song == null || !Platform.isAndroid) return;
+    _btLyricLine = -2;
+    try {
+      await AudioService.updateMediaItem(_mediaItemOf(song));
+    } catch (_) {}
+  }
 
   Future<void> _init() async {
     await _restoreSession();
@@ -397,8 +433,20 @@ class PlayerController extends ChangeNotifier {
         hi = mid - 1;
       }
     }
-    if (found != lyricIndex.value) lyricIndex.value = found;
+    if (found != lyricIndex.value) {
+      lyricIndex.value = found;
+      unawaited(_pushBtLyric());
+    }
   }
+
+  /// 当前媒体通知/蓝牙元数据 MediaItem。
+  MediaItem _mediaItemOf(Song song) => MediaItem(
+        id: song.hash,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        artUri: song.coverUrl.isEmpty ? null : Uri.parse(song.coverUrl),
+      );
 
   Future<void> enterFm(Future<List<Song>> Function() source) async {
     fmMode = true;

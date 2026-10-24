@@ -71,3 +71,6 @@ tool/dev.pkl
 tool/*.py
 tool/kg_login.js
 tool/aes_ref.txt
+tool/kg_*.js
+tool/kg_*.html
+tool/make_icon2.py

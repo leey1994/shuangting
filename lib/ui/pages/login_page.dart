@@ -6,8 +6,9 @@ import 'package:provider/provider.dart';
 import '../../data/kg_api.dart';
 import '../../data/store.dart';
 
-/// 酷狗扫码登录：生成二维码 → 2s 轮询 → 成功后写入 Cookie。
-/// Cookie 手工导入保留为高级选项。
+/// 酷狗登录：扫码（主推）/ 手机验证码 / 账号密码 三方式。
+/// 验证码与密码链路按参考项目协议实现；上游 2026 年起对第三方客户端启用
+/// SSA 反爬（错误码 20006），失败时给出明确引导文案。
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -15,7 +16,9 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<LoginPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tab = TabController(length: 3, vsync: this);
   Timer? _timer;
   int _gen = 0;
   KgQrSession? _session;
@@ -23,6 +26,14 @@ class _LoginPageState extends State<LoginPage> {
   int _kind = 0; // 0 生成中 1 等待扫码 2 已扫码 3 失效/出错 4 成功
   bool _pollBusy = false;
   final _cookieCtrl = TextEditingController();
+  final _mobileCtrl = TextEditingController();
+  final _codeCtrl = TextEditingController();
+  final _accountCtrl = TextEditingController();
+  final _pwdCtrl = TextEditingController();
+  bool _smsBusy = false;
+  bool _pwdBusy = false;
+  int _resendIn = 0;
+  Timer? _resendTimer;
 
   SettingsModel get _settings => context.read<SettingsModel>();
   KgApi get _api => context.read<KgApi>();
@@ -30,13 +41,24 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    _tab.addListener(() {
+      if (_tab.indexIsChanging) return;
+      // 离开扫码页时暂停轮询，省流量
+      if (_tab.index != 0) _timer?.cancel();
+    });
     _newSession();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _resendTimer?.cancel();
+    _tab.dispose();
     _cookieCtrl.dispose();
+    _mobileCtrl.dispose();
+    _codeCtrl.dispose();
+    _accountCtrl.dispose();
+    _pwdCtrl.dispose();
     super.dispose();
   }
 
@@ -76,9 +98,7 @@ class _LoginPageState extends State<LoginPage> {
       if (gen != _gen || !mounted) return;
       if (r.status == 4) {
         _timer?.cancel();
-        _settings.cookie = r.cookie;
-        _api.cookie = r.cookie;
-        if (r.nickname.isNotEmpty) _settings.nickname = r.nickname;
+        await _applyLogin(r.cookie, r.nickname);
         setState(() {
           _status = '登录成功${r.nickname.isEmpty ? '' : ' · ${r.nickname}'}';
           _kind = 4;
@@ -111,22 +131,88 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _applyLogin(String cookie, String nickname) async {
+    _settings.cookie = cookie;
+    _api.cookie = cookie;
+    if (nickname.isNotEmpty) _settings.nickname = nickname;
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _sendSms() async {
+    if (_smsBusy) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _smsBusy = true);
+    try {
+      await _api.sendSmsCode(_mobileCtrl.text);
+      _toast('验证码已发送');
+      setState(() => _resendIn = 60);
+      _resendTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+        if (!mounted) return t.cancel();
+        setState(() => _resendIn--);
+        if (_resendIn <= 0) t.cancel();
+      });
+    } on KgException catch (e) {
+      _toast(KgApi.isUpstreamRejected(e)
+          ? '${e.message}（上游风控拦截，可改用扫码登录）'
+          : e.message);
+    } finally {
+      if (mounted) setState(() => _smsBusy = false);
+    }
+  }
+
+  Future<void> _smsLogin() async {
+    if (_smsBusy) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _smsBusy = true);
+    try {
+      final r = await _api.smsLogin(_mobileCtrl.text, _codeCtrl.text);
+      await _applyLogin(r.cookie, r.nickname);
+      _toast('登录成功${r.nickname.isEmpty ? '' : ' · ${r.nickname}'}');
+      if (mounted) Navigator.of(context).pop(true);
+    } on KgException catch (e) {
+      _toast(KgApi.isUpstreamRejected(e)
+          ? '${e.message}（上游风控拦截，可改用扫码登录）'
+          : e.message);
+    } finally {
+      if (mounted) setState(() => _smsBusy = false);
+    }
+  }
+
+  Future<void> _pwdLogin() async {
+    if (_pwdBusy) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _pwdBusy = true);
+    try {
+      final r = await _api.passwordLogin(_accountCtrl.text, _pwdCtrl.text);
+      await _applyLogin(r.cookie, r.nickname);
+      _toast('登录成功${r.nickname.isEmpty ? '' : ' · ${r.nickname}'}');
+      if (mounted) Navigator.of(context).pop(true);
+    } on KgException catch (e) {
+      _toast(KgApi.isUpstreamRejected(e)
+          ? '${e.message}（上游风控拦截，可改用扫码登录）'
+          : e.message);
+    } finally {
+      if (mounted) setState(() => _pwdBusy = false);
+    }
+  }
+
   Future<void> _saveManual() async {
     final v = _cookieCtrl.text.trim();
     if (v.isEmpty) return;
     _settings.cookie = v;
     _api.cookie = v;
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Cookie 已保存')));
+    _toast('Cookie 已保存');
   }
 
   void _unbind() {
     _settings.cookie = '';
     _api.cookie = '';
     _cookieCtrl.clear();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('已解除账号绑定')));
+    _toast('已解除账号绑定');
   }
 
   Color _dotColor(ColorScheme scheme) => switch (_kind) {
@@ -137,135 +223,253 @@ class _LoginPageState extends State<LoginPage> {
         _ => scheme.onSurface.withValues(alpha: 0.4),
       };
 
+  Widget _qrTab(ColorScheme scheme, bool bound) {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: scheme.outline.withValues(alpha: 0.2)),
+          ),
+          child: SizedBox(
+            width: 208,
+            height: 208,
+            child: _session != null && _session!.image.isNotEmpty
+                ? Image.memory(_session!.image, fit: BoxFit.contain)
+                : _kind == 3
+                    ? const Icon(Icons.qr_code_rounded,
+                        size: 64, color: Color(0xFF666666))
+                    : const Center(
+                        child:
+                            CircularProgressIndicator(strokeWidth: 2.4)),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: scheme.outline.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                    color: _dotColor(scheme), shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 9),
+              Text(_status,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton.icon(
+              onPressed: _kind == 0 ? null : _newSession,
+              icon: const Icon(Icons.refresh_rounded, size: 19),
+              label: const Text('刷新二维码'),
+            ),
+            const SizedBox(width: 4),
+            Text('无需手工复制 Cookie',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: scheme.onSurface.withValues(alpha: 0.45))),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Text(
+            '已扫码后还需要在手机上点击「确认登录」，登录状态会同步用于签到与 VIP 音源。',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 11.5,
+                height: 1.5,
+                color: scheme.onSurface.withValues(alpha: 0.5)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _manualCookieSection(scheme, bound),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _manualCookieSection(ColorScheme scheme, bool bound) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+        childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+        title:
+            const Text('高级 · 手工导入 Cookie', style: TextStyle(fontSize: 13)),
+        subtitle: Text(bound ? '当前已绑定' : '当前未绑定',
+            style: const TextStyle(fontSize: 11)),
+        children: [
+          TextField(
+            controller: _cookieCtrl,
+            maxLines: 4,
+            decoration:
+                const InputDecoration(hintText: 'token=...; userid=...;'),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              FilledButton.tonal(
+                  onPressed: _saveManual, child: const Text('保存 Cookie')),
+              const SizedBox(width: 10),
+              if (bound)
+                OutlinedButton(
+                    onPressed: _unbind, child: const Text('解除绑定')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _smsTab(ColorScheme scheme) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
+      children: [
+        TextField(
+          controller: _mobileCtrl,
+          keyboardType: TextInputType.phone,
+          maxLength: 11,
+          decoration: const InputDecoration(
+            labelText: '手机号',
+            prefixText: '+86 ',
+            counterText: '',
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _codeCtrl,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: const InputDecoration(
+                    labelText: '验证码', counterText: ''),
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton.tonal(
+              onPressed: (_smsBusy || _resendIn > 0) ? null : _sendSms,
+              child: Text(_resendIn > 0 ? '重发($_resendIn s)' : '发送验证码'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 22),
+        FilledButton(
+          onPressed: _smsBusy ? null : _smsLogin,
+          style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(48)),
+          child: _smsBusy
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('登录'),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          '推荐使用「扫码登录」；验证码登录走酷狗手机端协议，若上游风控拦截（20006）请改用扫码。',
+          style: TextStyle(
+              fontSize: 11.5,
+              height: 1.5,
+              color: scheme.onSurface.withValues(alpha: 0.5)),
+        ),
+      ],
+    );
+  }
+
+  Widget _pwdTab(ColorScheme scheme) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
+      children: [
+        TextField(
+          controller: _accountCtrl,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: '手机号 / 邮箱'),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _pwdCtrl,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: '密码'),
+        ),
+        const SizedBox(height: 22),
+        FilledButton(
+          onPressed: _pwdBusy ? null : _pwdLogin,
+          style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(48)),
+          child: _pwdBusy
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('登录'),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          '推荐使用「扫码登录」；密码登录走酷狗手机端协议，若上游风控拦截（20006）请改用扫码。',
+          style: TextStyle(
+              fontSize: 11.5,
+              height: 1.5,
+              color: scheme.onSurface.withValues(alpha: 0.5)),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsModel>();
     final bound = settings.cookie.trim().isNotEmpty;
     return Scaffold(
-      appBar: AppBar(title: const Text('登录酷狗账号')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        child: Center(
-          child: Column(
-            children: [
-              const SizedBox(height: 8),
-              // 二维码卡片
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                      color: scheme.outline.withValues(alpha: 0.2)),
-                ),
-                child: SizedBox(
-                  width: 208,
-                  height: 208,
-                  child: _session != null && _session!.image.isNotEmpty
-                      ? Image.memory(_session!.image, fit: BoxFit.contain)
-                      : _kind == 3
-                          ? const Icon(Icons.qr_code_rounded,
-                              size: 64, color: Color(0xFF666666))
-                          : const Center(
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2.4)),
-                ),
-              ),
-              const SizedBox(height: 18),
-              // 状态条
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: scheme.surface.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(999),
-                  border:
-                      Border.all(color: scheme.outline.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 9,
-                      height: 9,
-                      decoration: BoxDecoration(
-                          color: _dotColor(scheme), shape: BoxShape.circle),
-                    ),
-                    const SizedBox(width: 9),
-                    Text(_status,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextButton.icon(
-                    onPressed: _kind == 0 ? null : _newSession,
-                    icon: const Icon(Icons.refresh_rounded, size: 19),
-                    label: const Text('刷新二维码'),
-                  ),
-                  const SizedBox(width: 4),
-                  Text('无需手工复制 Cookie',
-                      style: TextStyle(
-                          fontSize: 11.5,
-                          color: scheme.onSurface.withValues(alpha: 0.45))),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Text(
-                  '已扫码后还需要在手机上点击「确认登录」，登录状态会同步用于签到与 VIP 音源。',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      height: 1.5,
-                      color: scheme.onSurface.withValues(alpha: 0.5)),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Theme(
-                data: Theme.of(context)
-                    .copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-                  childrenPadding:
-                      const EdgeInsets.fromLTRB(8, 0, 8, 12),
-                  title: const Text('高级 · 手工导入 Cookie',
-                      style: TextStyle(fontSize: 13)),
-                  subtitle: Text(bound ? '当前已绑定' : '当前未绑定',
-                      style: const TextStyle(fontSize: 11)),
-                  children: [
-                    TextField(
-                      controller: _cookieCtrl,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                          hintText: 'token=...; userid=...;'),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        FilledButton.tonal(
-                            onPressed: _saveManual,
-                            child: const Text('保存 Cookie')),
-                        const SizedBox(width: 10),
-                        if (bound)
-                          OutlinedButton(
-                              onPressed: _unbind,
-                              child: const Text('解除绑定')),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
+      appBar: AppBar(
+        title: const Text('登录酷狗账号'),
+        bottom: TabBar(
+          controller: _tab,
+          tabs: const [
+            Tab(text: '扫码'),
+            Tab(text: '验证码'),
+            Tab(text: '密码'),
+          ],
         ),
+      ),
+      body: TabBarView(
+        controller: _tab,
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Center(
+                child: _qrTab(scheme, bound)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _smsTab(scheme),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: _pwdTab(scheme),
+          ),
+        ],
       ),
     );
   }

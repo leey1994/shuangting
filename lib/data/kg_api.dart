@@ -8,6 +8,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 
 import '../core/lyric_parser.dart';
+import 'kugou_crypto.dart';
 import 'models.dart';
 
 class KgQrSession {
@@ -22,6 +23,14 @@ class KgQrCheck {
   final String cookie;
   final String nickname;
   const KgQrCheck({required this.status, this.cookie = '', this.nickname = ''});
+}
+
+/// 验证码 / 密码登录的统一结果。
+class KgLoginResult {
+  final String cookie;
+  final String nickname;
+  final String vipToken;
+  const KgLoginResult({required this.cookie, this.nickname = '', this.vipToken = ''});
 }
 
 /// tracker 查询结果：urls 为 CDN 候选列表（按序尝试），vipLocked 表示被 VIP 锁定。
@@ -102,7 +111,239 @@ class KgApi {
 
   static String _md5(String input) => md5.convert(utf8.encode(input)).toString();
 
+  // ---------- 密码 / 短信验证码登录（对齐 login.js + login_cellphone.js） ----------
+
+  static const _androidRoute = 'LnT6xpN3khm36zse0QzvmgTZ3waWdRSA';
+  static const _androidUa = 'Android16-1070-11440-130-0-wifi';
+  static const _loginUa = 'Android16-1070-11440-130-0-LOGIN-wifi';
+
+  // 上游 JS 内嵌的固定设备令牌（参考项目原样量）
+  static const _devT1 =
+      '562a6f12a6e803453647d16a08f5f0c2ff7eee692cba2ab74cc4c8ab47fc467561a7c6b5'
+      '86ce7dc46a63613b246737c03a1dc8f8d162d8ce1d2c71893d19f1d4b797685a4c6d3d8'
+      '1341cbde65e488c4829a9b4d42ef2df470eb102979fa5adcdd9b4eecfea8b909ff7599a'
+      'beb49867640f10c3c70fc444effca9d15db44a9a6c907731e2bb0f22cd9b35363801699'
+      '95693e5f0e2424e3378097d3813186e3fe96bbe7023808a0981b4e2b6135a76faac';
+  static const _devT2 =
+      '31c4daf4cf480169ccea1cb7d4a209295865a9d2b788510301694db229b87807'
+      '469ea0d41b4d4b9173c2151da7294aeebfc9738df154bbdf11a4e117bb5dff6'
+      'a3af8ce5ce333e681c1f29a44038f27567d58992eb81283e080778ac77db140'
+      '0fdf49b7cf7e26be2e5af4da7830cc3be4';
+
+  /// Android 签名：md5(ROUTE + sorted("k=v" 无分隔) + bodyJson + ROUTE)
+  String _androidSign(Map<String, dynamic> params, String bodyJson) {
+    final keys = params.keys.toList()..sort();
+    final joined = [
+      for (final k in keys) '$k=${_sigCoerce(params[k])}',
+    ].join('');
+    return KgCrypto.md5Hex('$_androidRoute$joined$bodyJson$_androidRoute');
+  }
+
+  static String _sigCoerce(dynamic v) {
+    if (v is String) return v;
+    if (v is Map || v is List) return jsonEncode(v);
+    return v.toString();
+  }
+
+  /// 登录系网关 POST：dfid/mid/uuid/appid/clientver/clienttime 默认参数
+  /// + android 签名，JSON body 原样传输。
+  Future<Map<String, dynamic>> _loginPost({
+    required String url,
+    required Map<String, dynamic> body,
+    String? router,
+    Map<String, String>? headers,
+  }) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final p = <String, dynamic>{
+      'dfid': dfid,
+      'mid': mid,
+      'uuid': '-',
+      'appid': 3116,
+      'clientver': 11440,
+      'clienttime': now,
+    };
+    final bodyJson = jsonEncode(body);
+    final query = <String, String>{
+      for (final e in p.entries)
+        e.key: e.value is String ? e.value as String : '${e.value}',
+    };
+    query['signature'] = _androidSign(p, bodyJson);
+    final uri = Uri.parse(url).replace(queryParameters: query);
+    final req = http.Request('POST', uri);
+    req.headers['Content-Type'] = 'application/json';
+    req.headers['User-Agent'] = headers?['User-Agent'] ?? _androidUa;
+    if (router != null) req.headers['x-router'] = router;
+    headers?.forEach((k, v) => req.headers[k] = v);
+    req.body = bodyJson;
+    http.Response res;
+    try {
+      final streamed =
+          await _client.send(req).timeout(const Duration(seconds: 20));
+      res =
+          await http.Response.fromStream(streamed).timeout(const Duration(seconds: 20));
+    } on SocketException {
+      throw KgException('网络连接失败，请检查网络');
+    } on TimeoutException {
+      throw KgException('网络请求超时');
+    }
+    final text = utf8.decode(res.bodyBytes, allowMalformed: true);
+    Map<String, dynamic> data;
+    try {
+      data = (jsonDecode(text) as Map).cast<String, dynamic>();
+    } catch (_) {
+      throw KgException('登录服务返回异常 (${res.statusCode})');
+    }
+    final status = (data['status'] as num?)?.toInt() ?? 0;
+    final code = data['error_code'] ?? data['errcode'] ?? data['error_code'] ?? data['error'] ?? '';
+    final errmsg = data['errmsg']?.toString() ?? '';
+    if (status != 1) {
+      final info = (data['error'] is Map
+              ? ((data['error'] as Map)['errmsg']?.toString() ?? '')
+              : errmsg)
+          .trim();
+      final cid = (code is Map ? code['error_code'] : code)?.toString() ?? '';
+      throw KgException(
+          info.isEmpty ? '登录失败${cid.isEmpty ? '' : ' [$cid]'}' : '$info${cid.isEmpty ? '' : ' [$cid]'}');
+    }
+    return data;
+  }
+
+  ///
+  /// secu_params = AES(tk) 加密的结果对象 → 解出 token/userid/vip_*，组装 Cookie。
+  ///
+  KgLoginResult _secuToResult(Map<String, dynamic> resp, String tk) {
+    final data = (resp['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final raw = data['secu_params']?.toString() ?? '';
+    var token = data['token']?.toString() ?? '';
+    var userid = (data['userid'] as num?)?.toInt();
+    var vipToken = data['vip_token']?.toString() ?? '';
+    var vipType = data['vip_type']?.toString() ?? '0';
+    var nickname = data['nickname']?.toString() ?? '';
+    if (raw.isNotEmpty) {
+      try {
+        final dec = jsonDecode(KgCrypto.aesDecryptHex(raw, tk));
+        if (dec is Map) {
+          token = dec['token']?.toString() ?? token;
+          if (dec['userid'] is num) userid = (dec['userid'] as num).toInt();
+          vipToken = dec['vip_token']?.toString() ?? vipToken;
+          final vt = dec['vip_type'];
+          vipType = vt == null || (vt is num && vt == 0) ? vipType : '$vt';
+        }
+      } catch (_) {}
+    }
+    final parts = [
+      if (token.isNotEmpty) 'token=$token',
+      if (userid != null) 'userid=$userid',
+      if (vipToken.isNotEmpty) 'vip_token=$vipToken',
+      'vip_type=$vipType',
+    ];
+    return KgLoginResult(
+        cookie: parts.join('; '), nickname: nickname, vipToken: vipToken);
+  }
+
+  /// 账号 + 密码登录（/v9/login_by_pwd）。
+  Future<KgLoginResult> passwordLogin(String account, String password) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final enc = KgCrypto.aesEncrypt(
+        jsonEncode({'pwd': password, 'code': '', 'clienttime_ms': now}));
+    final pk = KgCrypto.rsaLoginPk(
+        jsonEncode({'clienttime_ms': now, 'key': enc.tempKey}));
+    final resp = await _loginPost(
+      url: 'https://gateway.kugou.com/v9/login_by_pwd',
+      router: 'login.user.kugou.com',
+      body: {
+        'plat': 1,
+        'support_multi': 1,
+        'clienttime_ms': now,
+        't1': _devT1,
+        't2': _devT2,
+        't3': 'MCwwLDAsMCwwLDAsMCwwLDA=',
+        'username': account,
+        'params': enc.hex,
+        'pk': pk,
+      },
+    );
+    return _secuToResult(resp, enc.tempKey);
+  }
+
+  /// 20006 = 上游签名/风控拒绝。2026 年起酷狗登录接口加了 SSA 反爬
+  /// （MakcRe/KuGouMusicApi #206/#217：密码与验证码登录在第三方客户端会被
+  /// 上游判为 20006，需官方 App 原生验证），保留协议实现，UI 层给出引导。
+  static bool isUpstreamRejected(KgException e) =>
+      e.message.contains('[20006]');
+
+  /// 发送短信验证码（/v8/send_mobile_code，businessid=5）。
+  Future<void> sendSmsCode(String mobile) async {
+    mobile = mobile.trim();
+    if (mobile.length != 11) throw KgException('手机号格式不正确');
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final enc = KgCrypto.aesEncrypt(jsonEncode({'mobile': mobile}));
+    final pk = KgCrypto.rsaLoginPk(
+        jsonEncode({'clienttime_ms': now, 'key': enc.tempKey}));
+    await _loginPost(
+      url: 'https://gateway.kugou.com/v8/send_mobile_code',
+      router: 'login.user.kugou.com',
+      headers: {'User-Agent': _loginUa},
+      body: {
+        'plat': '1',
+        'businessid': 5,
+        'clienttime_ms': now,
+        'pk': pk,
+        'mobile': KgCrypto.maskMobile(mobile),
+        'params': enc.hex,
+      },
+    );
+  }
+
+  /// 短信验证码登录（/v7/login_by_verifycode）。
+  Future<KgLoginResult> smsLogin(String mobile, String code) async {
+    mobile = mobile.trim();
+    code = code.trim();
+    if (mobile.length != 11 || code.isEmpty) {
+      throw KgException('请输入手机号与验证码');
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final enc =
+        KgCrypto.aesEncrypt(jsonEncode({'mobile': mobile, 'code': code}));
+    final pk = KgCrypto.rsaLoginPk(
+        jsonEncode({'clienttime_ms': now, 'key': enc.tempKey}));
+    final key = KgCrypto.md5Hex('3116$_androidRoute' '11440$now');
+    final t2 =
+        KgCrypto.liteT2('$mid|0f607264fc6318a92b9e13c65db7cd3c|||$now');
+    final t1 = KgCrypto.liteT1('|$now');
+    final resp = await _loginPost(
+      url: 'https://loginserviceretry.kugou.com/v7/login_by_verifycode',
+      headers: {'User-Agent': _loginUa, 'support-calm': '1'},
+      body: {
+        'plat': 1,
+        'support_multi': 1,
+        't1': t1,
+        't2': t2,
+        'clienttime_ms': now,
+        'mobile': KgCrypto.maskMobile(mobile),
+        'key': key,
+        'pk': pk,
+        'params': enc.hex,
+        'dfid': dfid,
+        'dev': '',
+        'gitversion': '5f0b7c4',
+      },
+    );
+    final r = _secuToResult(resp, enc.tempKey);
+    final d = (resp['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final dataT1 = d['t1']?.toString() ?? '';
+    if (dataT1.isNotEmpty && r.cookie.isNotEmpty) {
+      // t1 一并写入会话（签到等账号接口的参考做法）
+      return KgLoginResult(
+          cookie: '${r.cookie}; t1=$dataT1',
+          nickname: r.nickname,
+          vipToken: r.vipToken);
+    }
+    return r;
+  }
+
   // ---------- 酷狗扫码登录（对齐参考项目 qr_create / qr_check 链路） ----------
+
 
   static const _webSalt = 'NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt';
 

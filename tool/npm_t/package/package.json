@@ -1,0 +1,27 @@
+{
+  "name": "@kg-ai/kugou-skill",
+  "version": "0.1.20",
+  "description": "Kugou Skill CLI",
+  "main": "index.js",
+  "bin": {
+    "kugou-cli": "./scripts/run.js"
+  },
+  "scripts": {
+    "postinstall": "node ./scripts/install.js"
+  },
+  "keywords": [
+    "cli",
+    "kugou"
+  ],
+  "files": [
+    "bin",
+    "scripts",
+    "SKILL.md",
+    "references"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16"
+  }
+}

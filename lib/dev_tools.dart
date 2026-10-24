@@ -96,7 +96,7 @@ void registerDevTools({
     }
     for (final s in songs.take(6)) {
       final resolved = await api.resolveAudio(s, settings.quality);
-      if (resolved != null) {
+      {
         await player.playSong(s, newQueue: songs);
         return developer.ServiceExtensionResponse.result(
             jsonEncode({'ok': true, 'title': s.title, 'quality': resolved.quality}));

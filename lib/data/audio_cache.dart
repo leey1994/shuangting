@@ -56,45 +56,54 @@ class AudioCache {
   Future<File> download(
     Song song,
     String quality, {
-    String? url,
+    List<String> urls = const [],
     void Function(int received, int total)? onProgress,
   }) async {
     final target = await _fileFor(song.hash, quality);
     if (await target.exists() && await target.length() > 1024) return target;
+    if (urls.isEmpty) throw KgException('无法获取下载地址');
 
-    final resolved = url ??
-        (await api.resolveAudio(song, quality))?.url;
-    if (resolved == null) throw KgException('无法获取下载地址');
-
+    // ponytail: 候选 CDN 按序各试一次即可，某些 ISP 下个别音源 host 不通
     final client = http.Client();
     final tmp = File('${target.path}.part');
+    Object? lastError;
     try {
-      final req = http.Request('GET', Uri.parse(resolved));
-      req.headers['User-Agent'] = KgApi.userAgent;
-      final res = await client.send(req).timeout(const Duration(seconds: 30));
-      if (res.statusCode < 200 || res.statusCode >= 300) {
-        throw KgException('下载失败 (${res.statusCode})');
+      for (final url in urls) {
+        try {
+          final req = http.Request('GET', Uri.parse(url));
+          req.headers['User-Agent'] = KgApi.userAgent;
+          final res = await client.send(req).timeout(const Duration(seconds: 30));
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            throw KgException('下载失败 (${res.statusCode})');
+          }
+          final total = res.contentLength ?? 0;
+          var received = 0;
+          final sink = tmp.openWrite();
+          try {
+            await for (final chunk in res.stream) {
+              sink.add(chunk);
+              received += chunk.length;
+              onProgress?.call(received, total);
+            }
+            await sink.flush();
+            await sink.close();
+          } catch (_) {
+            await sink.close();
+            rethrow;
+          }
+          if (await tmp.length() < 1024) throw KgException('下载内容异常');
+          if (await target.exists()) await target.delete();
+          await tmp.rename(target.path);
+          unawaited(enforceLimit(settings.cacheLimitMb));
+          return target;
+        } catch (e) {
+          lastError = e;
+          try {
+            if (await tmp.exists()) await tmp.delete();
+          } catch (_) {}
+        }
       }
-      final total = res.contentLength ?? 0;
-      var received = 0;
-      final sink = tmp.openWrite();
-      await for (final chunk in res.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        onProgress?.call(received, total);
-      }
-      await sink.flush();
-      await sink.close();
-      if (await tmp.length() < 1024) throw KgException('下载内容异常');
-      if (await target.exists()) await target.delete();
-      await tmp.rename(target.path);
-      unawaited(enforceLimit(settings.cacheLimitMb));
-      return target;
-    } catch (_) {
-      try {
-        if (await tmp.exists()) await tmp.delete();
-      } catch (_) {}
-      rethrow;
+      throw lastError is KgException ? lastError : KgException('下载失败，请检查网络');
     } finally {
       client.close();
     }

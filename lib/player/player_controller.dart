@@ -185,17 +185,11 @@ class PlayerController extends ChangeNotifier {
         await cache.touch(song);
       } else {
         final resolved = await api.resolveAudio(song, settings.quality);
-        if (resolved == null) {
-          error = song.vip ? 'VIP 专享歌曲，暂无可用音源' : '无法获取播放地址，请稍后再试';
-          loading = false;
-          _safeNotify();
-          return;
-        }
         uri = resolved.url;
         activeQuality = resolved.quality;
         if (settings.autoCache) {
           unawaited(cache
-              .download(song, resolved.quality, url: resolved.url)
+              .download(song, resolved.quality, urls: resolved.urls)
               .catchError((_) => File('')));
         }
       }

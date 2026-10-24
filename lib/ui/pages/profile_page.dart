@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme.dart';
-import '../../data/kg_api.dart';
 import '../../data/store.dart';
 import '../../data/update_service.dart';
+import 'login_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -408,7 +408,6 @@ class _AccountCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final api = context.read<KgApi>();
     final bound = settings.cookie.trim().isNotEmpty;
     return Container(
       decoration: BoxDecoration(
@@ -423,12 +422,13 @@ class _AccountCard extends StatelessWidget {
                 color: bound ? AppTheme.mint : scheme.onSurface.withValues(alpha: 0.4)),
             title: Text(bound ? '已绑定酷狗账号' : '未绑定酷狗账号',
                 style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-            subtitle: Text(bound ? '签到时会同步调用账号签到接口' : '绑定 Cookie 后可同步账号签到',
+            subtitle: Text(bound ? '扫码重新登录 · Cookie 保留高级导入' : '手机酷狗 App 扫码即可登录',
                 style: const TextStyle(fontSize: 11)),
             trailing: FilledButton.tonal(
-              onPressed: () => _bind(context, api),
-              child: Text(bound ? '更新' : '绑定'),
+              onPressed: () => _openLogin(context),
+              child: Text(bound ? '重新登录' : '扫码登录'),
             ),
+            onTap: () => _openLogin(context),
           ),
           Divider(height: 1, color: scheme.outline.withValues(alpha: 0.2)),
           ListTile(
@@ -443,50 +443,8 @@ class _AccountCard extends StatelessWidget {
     );
   }
 
-  Future<void> _bind(BuildContext context, KgApi api) async {
-    final controller = TextEditingController(text: settings.cookie);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('绑定酷狗账号'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '在浏览器登录酷狗音乐网页版，复制请求头中的 Cookie（包含 token、userid 等字段），粘贴到下方。',
-                style: TextStyle(fontSize: 12, height: 1.5),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                maxLines: 4,
-                decoration: const InputDecoration(hintText: 'token=...; userid=...;'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ''),
-            child: const Text('解除绑定'),
-          ),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: const Text('保存')),
-        ],
-      ),
-    );
-    if (result != null) {
-      settings.cookie = result;
-      api.cookie = result;
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result.isEmpty ? '已解除绑定' : '账号绑定已保存')));
-      }
-    }
+  Future<void> _openLogin(BuildContext context) async {
+    await Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const LoginPage()));
   }
 }

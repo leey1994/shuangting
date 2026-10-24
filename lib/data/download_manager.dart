@@ -49,12 +49,11 @@ class DownloadManager extends ChangeNotifier {
     notifyListeners();
     try {
       final resolved = await api.resolveAudio(song, q);
-      if (resolved == null) throw KgException('该歌曲暂无可用音源');
       task.quality = resolved.quality;
       final file = await cache.download(
         song,
         resolved.quality,
-        url: resolved.url,
+        urls: resolved.urls,
         onProgress: (received, total) {
           task.received = received;
           task.total = total;

@@ -56,3 +56,15 @@ android/*.jks
 Dist/
 tool/ref_*.rs
 tool/probe*.dart
+tool/ref_*
+tool/probe*
+tool/lm_*
+tool/js_*
+tool/sdk_*
+tool/t_*.py
+tool/npm_t/
+tool/dev.pkl
+tool/next_*
+tool/vm_*
+tool/bm_*
+tool/dev.pkl

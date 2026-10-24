@@ -68,3 +68,6 @@ tool/next_*
 tool/vm_*
 tool/bm_*
 tool/dev.pkl
+tool/*.py
+tool/kg_login.js
+tool/aes_ref.txt

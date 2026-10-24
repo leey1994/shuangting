@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -137,38 +139,7 @@ class _AboutPageState extends State<AboutPage> {
             onTap: () => _open(UpdateService.releasesUrl),
           ),
           const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: scheme.surface.withValues(alpha: 0.66),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: scheme.outline.withValues(alpha: 0.2)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.new_releases_rounded, size: 18, color: scheme.primary),
-                    const SizedBox(width: 8),
-                    const Text('版本日志 · v0.0.1',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const _Bullet('全新设计的界面，首页、发现、榜单、音乐库、播放页全部重做'),
-                const _Bullet('听过的歌自动缓存，没网也能继续听'),
-                const _Bullet('支持手机、平板与横屏车机三种布局'),
-                const _Bullet('启动自动签到，连续签到天数一目了然'),
-                const _Bullet('内置 GitHub 自动更新，双端构建一键升级'),
-                const _Bullet('每日推荐、排行榜、私人 FM、逐字歌词、音效均衡器'),
-                const SizedBox(height: 6),
-                Text('首个公开版本，欢迎在 GitHub 反馈问题与建议。',
-                    style: TextStyle(
-                        fontSize: 11.5, color: scheme.onSurface.withValues(alpha: 0.45))),
-              ],
-            ),
-          ),
+          const _ReleaseNotesCard(),
           const SizedBox(height: 20),
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -200,8 +171,107 @@ class _AboutPageState extends State<AboutPage> {
   }
 }
 
-class _Bullet extends StatelessWidget {
-  final String text;
+/// 版本日志卡片：拉 GitHub Releases 最新版的用户侧更新说明（body）。
+/// 拉取失败时回退显示当前版本号。
+class _ReleaseNotesCard extends StatefulWidget {
+  const _ReleaseNotesCard();
+
+  @override
+  State<_ReleaseNotesCard> createState() => _ReleaseNotesCardState();
+}
+
+class _ReleaseNotesCardState extends State<_ReleaseNotesCard> {
+  String? _tag;
+  List<String>? _bullets;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final res = await http.get(
+        Uri.parse(
+            'https://api.github.com/repos/${UpdateService.repo}/releases/latest'),
+        headers: const {
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'ShuangTing-About',
+        },
+      ).timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) throw StateError('http ${res.statusCode}');
+      final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final body = (data['body'] as String?) ?? '';
+      final lines = body
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.startsWith('- ') || l.startsWith('* '))
+          .map((l) => l.substring(2).trim())
+          .where((l) => l.isNotEmpty)
+          .take(8)
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _tag = (data['tag_name'] as String?) ?? '';
+        _bullets = lines.isEmpty ? null : lines;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: scheme.surface.withValues(alpha: 0.66),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: scheme.outline.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.new_releases_rounded, size: 18, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                _failed
+                    ? '版本日志'
+                    : '版本日志 · ${(_tag ?? '').isEmpty || _tag == 'null' ? '最新版' : _tag!.replaceFirst('v', '')}',
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_bullets == null)
+            Text(
+              _failed ? '暂未获取到更新说明' : '正在获取最新版本说明…',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: scheme.onSurface.withValues(alpha: 0.45)),
+            )
+          else
+            ...[
+              for (final b in _bullets!) _Bullet(b),
+              const SizedBox(height: 6),
+              Text('以上为最新版本更新内容，欢迎在 GitHub 反馈问题与建议。',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      color: scheme.onSurface.withValues(alpha: 0.45))),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Bullet extends StatelessWidget {  final String text;
   const _Bullet(this.text);
 
   @override

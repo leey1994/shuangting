@@ -39,8 +39,7 @@ class _SettingsPageState extends State<SettingsPage> {
   /// 关闭蓝牙歌词时，把 MediaItem 恢复成不含歌词行的原始元数据。
   Future<void> _restoreMediaItem() async {
     final p = context.read<PlayerController>();
-    final song = p.current;
-    if (song == null) return;
+    if (p.current == null) return;
     await p.restoreBtLyricMediaItem();
   }
 

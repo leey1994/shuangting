@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-
 import '../../data/kg_api.dart';
 import '../../data/store.dart';
 
@@ -52,16 +51,13 @@ class _WebLoginPageState extends State<WebLoginPage> {
   Future<void> _pollCookie() async {
     if (_done || !mounted) return;
     try {
-      final raw = await _controller
-          .runJavaScriptReturningResult('document.cookie') as String;
-      final cookie = raw.startsWith('"')
-          ? raw.substring(1, raw.length - 1)
-          : raw;
-      final fields = <String, String>{};
-      for (final part in cookie.split('; ')) {
-        final i = part.indexOf('=');
-        if (i > 0) fields[part.substring(0, i)] = part.substring(i + 1);
-      }
+      // 用 WebViewCookieManager 读整个 cookie store（含 HttpOnly 的 token cookie），
+      // document.cookie 读不到 HttpOnly，这是第一版绑不上的原因。
+      final cookies = await WebViewCookieManager()
+          .getCookies(domain: Uri.parse('https://kugou.com'));
+      final fields = <String, String>{
+        for (final c in cookies) c.name: c.value,
+      };
       final token = fields['token'] ?? fields['KuGoo'] ?? '';
       final userid = fields['userid'] ?? fields['KugooID'] ?? '';
       if (token.isEmpty || userid.isEmpty || userid == '0') return;

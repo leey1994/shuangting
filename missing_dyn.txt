@@ -1,0 +1,43 @@
+$count 首
+$minutes 分钟
+${LocalLibrary.instance.songs.length} 首
+${PluginManager.instance.records.length} 个
+${PluginManager.instance.records.length} 个已安装
+${_fans(artist.fans)} 粉丝
+${album.worksNum} 首
+${artist.fans} 粉丝
+${artist.worksNum} 作品
+${current.toStringAsFixed(1)} 秒
+${fav.songs.length} 首
+${lib.userPlaylists.length} 个
+${p.songs.length} 首
+${record.platform} 变量
+${sheet.worksNum} 首
+v${AppInfo.fullVersion} · 插件化音乐播放器，界面完全重绘
+上次备份：$_lastBackup
+下载中 ${((_progress ?? 0) * 100).round()}%
+下载中 ${(t.progress * 100).toStringAsFixed(0)}%
+作者 ${AppInfo.author} · ${AppInfo.email}
+删除歌单「${_playlist!.name}」？
+删除歌单「${p.name}」？
+发现新版本 v${info.version}
+失败${t.error == null ? 
+导入失败：$e
+导入歌单 ${DateTime.now().month}-${DateTime.now().day}
+将这首歌的歌词应用到「${current.title}」
+已保存「${p.name}」共 ${songs.length} 首
+已复制$label：$text
+已安装 ${installed.length} 个插件
+已应用到「${current.title}」
+已找到 $_found 首 · $_currentFile
+已收藏 $favCount 首 · 戴上耳机，世界安静
+已是最新版本 v${AppInfo.version}
+已更新到 ${record.displayVersion}
+已添加 $added 首到「${choice.name}」
+已添加到「${p.name}」
+当前 v${AppInfo.version} · 更新来自 GitHub Releases
+当前版本 v${AppInfo.version}
+所选插件不支持「${_types.firstWhere((e) => e.$1 == _type).$2}」搜索
+扫描完成，共 $count 首
+订阅完成，安装 ${installed.length} 个插件
+选择文件夹失败：$e

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>爽听 · 纯粹地听歌</title>
+<meta name="description" content="爽听是一款插件化的音乐播放器：聚合多个音源搜索、播放、歌词与榜单，支持 Android 与 Windows。" />
+<meta property="og:title" content="爽听 · 纯粹地听歌" />
+<meta property="og:description" content="插件化音乐播放器，Android + Windows 双端，聚合多音源搜索、播放与榜单。" />
+<meta property="og:type" content="website" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%23FF6B5B'/%3E%3Cpath d='M30 62V38m20 30V30m20 32V42' stroke='white' stroke-width='8' stroke-linecap='round'/%3E%3C/svg%3E" />
+<style>
+  :root{
+    --bg:#0b0d11; --card:#151a21; --line:#242b35; --text:#f4f6fa; --muted:#98a2b3;
+    --brand:#ff6b5b; --brand2:#ffb15b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(900px 500px at 80% -10%, rgba(255,107,91,.22), transparent 60%),
+      radial-gradient(700px 420px at 10% 0%, rgba(255,177,91,.12), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+  header{display:flex;align-items:center;justify-content:space-between;padding:26px 0}
+  .logo{display:flex;align-items:center;gap:12px;font-weight:800;font-size:18px;letter-spacing:2px}
+  .logo-mark{
+    width:38px;height:38px;border-radius:12px;
+    background:linear-gradient(135deg,var(--brand),var(--brand2));
+    display:grid;place-items:center;box-shadow:0 8px 24px rgba(255,107,91,.32)
+  }
+  .logo-mark svg{width:20px;height:20px}
+  nav{display:flex;gap:22px;font-size:14px;color:var(--muted)}
+  nav a:hover{color:var(--text)}
+  .hero{padding:56px 0 30px;text-align:center}
+  .badge{
+    display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);
+    border:1px solid var(--line);background:rgba(255,255,255,.03);
+    padding:6px 14px;border-radius:999px;margin-bottom:22px
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:#37c08a;box-shadow:0 0 0 4px rgba(55,192,138,.16)}
+  h1{
+    font-size:clamp(38px,6vw,64px);line-height:1.08;margin:0 0 18px;letter-spacing:-1.5px;font-weight:900;
+    background:linear-gradient(120deg,#fff 20%,#ffd9c9 55%,var(--brand) 110%);
+    -webkit-background-clip:text;background-clip:text;color:transparent
+  }
+  .sub{font-size:clamp(15px,2.1vw,18px);color:var(--muted);max-width:640px;margin:0 auto 32px}
+  .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;padding:13px 24px;border-radius:14px;
+    font-weight:600;font-size:15px;border:1px solid transparent;transition:.18s ease
+  }
+  .btn-primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#1b0d08;box-shadow:0 14px 34px rgba(255,107,91,.3)}
+  .btn-primary:hover{transform:translateY(-2px)}
+  .btn-ghost{border-color:var(--line);background:rgba(255,255,255,.03);color:var(--text)}
+  .btn-ghost:hover{border-color:#3a4452;background:rgba(255,255,255,.06)}
+  .meta{margin-top:16px;font-size:12.5px;color:var(--muted)}
+  section{padding:56px 0}
+  h2{font-size:24px;margin:0 0 8px;letter-spacing:-.4px}
+  .section-sub{color:var(--muted);font-size:14px;margin:0 0 28px}
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .card{
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));
+    border:1px solid var(--line);border-radius:18px;padding:20px
+  }
+  .card h3{margin:12px 0 6px;font-size:15.5px}
+  .card p{margin:0;font-size:13.5px;color:var(--muted)}
+  .icon{
+    width:38px;height:38px;border-radius:11px;display:grid;place-items:center;
+    background:rgba(255,107,91,.13);color:var(--brand)
+  }
+  .shots{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;align-items:flex-end}
+  .shot{
+    border-radius:26px;overflow:hidden;border:1px solid var(--line);
+    background:#000;box-shadow:0 28px 60px rgba(0,0,0,.5)
+  }
+  .shot img{display:block;width:100%;height:auto}
+  .shot.small{max-width:300px}
+  .shot.big{max-width:340px}
+  .steps{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));counter-reset:step}
+  .step{position:relative;padding-left:44px}
+  .step::before{
+    counter-increment:step;content:counter(step);
+    position:absolute;left:0;top:2px;width:28px;height:28px;border-radius:9px;
+    display:grid;place-items:center;font-size:13px;font-weight:700;
+    background:rgba(255,107,91,.14);color:var(--brand)
+  }
+  .step strong{display:block;font-size:14.5px;margin-bottom:2px}
+  .step span{font-size:13px;color:var(--muted)}
+  footer{border-top:1px solid var(--line);padding:26px 0 44px;color:var(--muted);font-size:13px}
+  footer .row{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  footer a{color:#c9d2e0}
+  footer a:hover{color:#fff}
+  code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:6px;font-size:12.5px}
+  @media (max-width:640px){ nav{display:none} .hero{padding:36px 0 18px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 15V9m5 8V7m5 7v-4" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </div>
+      爽听
+    </div>
+    <nav>
+      <a href="#features">功能</a>
+      <a href="#shots">界面</a>
+      <a href="#start">安装</a>
+      <a href="https://github.com/leey1994/shuangting">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <div class="badge"><span class="dot"></span> 开源 · Android &amp; Windows</div>
+    <h1>纯粹地听歌</h1>
+    <p class="sub">
+      爽听是一款插件化的音乐播放器。安装 MusicFree 插件后，搜索、播放、歌单、歌词、榜单全部打通，
+      多音源聚合在一个界面里，界面与交互完全自绘。
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/leey1994/shuangting/releases/latest">
+        ↓ 下载最新版本
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/leey1994/shuangting">
+        ★ GitHub 仓库
+      </a>
+    </div>
+    <p class="meta">Android 7+ · Windows 10+ · 内置更新检查，直接从 GitHub Releases 升级</p>
+  </div>
+
+  <section id="features">
+    <h2>该有的都有</h2>
+    <p class="section-sub">不做社交，不做信息流，只把听歌这件事做顺。</p>
+    <div class="grid">
+      <div class="card">
+        <div class="icon">🔌</div>
+        <h3>插件化音源</h3>
+        <p>兼容 MusicFree 插件协议，订阅源一键安装，音源随插件更新，无需升级 App。</p>
+      </div>
+      <div class="card">
+        <div class="icon">📊</div>
+        <h3>聚合榜单</h3>
+        <p>多音源榜单与热歌聚合展示，去重合并，一个页面看完各平台在放什么。</p>
+      </div>
+      <div class="card">
+        <div class="icon">🎧</div>
+        <h3>歌词与播放</h3>
+        <p>逐行歌词、自动匹配、偏移微调、断点续播、倍速与定时关闭，长按播放键可临时加速。</p>
+      </div>
+      <div class="card">
+        <div class="icon">💾</div>
+        <h3>下载与本地</h3>
+        <p>批量下载、本地音乐扫描、封面与元信息读取，离线也能听完整的库。</p>
+      </div>
+      <div class="card">
+        <div class="icon">🔁</div>
+        <h3>备份迁移</h3>
+        <p>歌单、收藏、设置导出为文件，支持 WebDAV 同步，换设备不丢数据。</p>
+      </div>
+      <div class="card">
+        <div class="icon">🖥️</div>
+        <h3>横屏与桌面</h3>
+        <p>车机横屏双栏布局、Windows 托盘控制、锁屏与通知栏播控。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="shots">
+    <h2>界面</h2>
+    <p class="section-sub">深色、浅色、横屏，同一套信息层级。</p>
+    <div class="shots">
+      <div class="shot small"><img src="assets/discover.png" alt="发现页" loading="lazy" /></div>
+      <div class="shot big"><img src="assets/player.png" alt="播放页" loading="lazy" /></div>
+    </div>
+  </section>
+
+  <section id="start">
+    <h2>三步开始</h2>
+    <p class="section-sub">App 本身不内置任何音源内容。</p>
+    <div class="steps">
+      <div class="step"><strong>安装爽听</strong><span>下载对应平台的构建物并安装。</span></div>
+      <div class="step"><strong>安装插件</strong><span>在插件页导入 <code>.js</code> 插件，或填订阅地址。</span></div>
+      <div class="step"><strong>开始听</strong><span>搜索、榜单、歌单立即可用，歌词自动匹配。</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="row">
+      <div>© 2026 爽听 · 作者 leey · <a href="mailto:leey1994@163.com">leey1994@163.com</a></div>
+      <div>
+        <a href="https://github.com/leey1994/shuangting/releases">版本发布</a> ·
+        <a href="https://github.com/leey1994/shuangting/issues">问题反馈</a> ·
+        <a href="https://github.com/leey1994/shuangting">源码</a>
+      </div>
+    </div>
+    <p style="margin:14px 0 0;font-size:12px;">
+      本项目仅供个人学习与研究使用。所有音源、内容与数据均来自第三方插件，与本项目无关。
+    </p>
+  </footer>
+</div>
+</body>
+</html>

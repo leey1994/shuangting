@@ -1,7 +1,6 @@
 # 爽听 ShuangTing
 
-> 当前版本 **v1.1.0** · 作者 **leey** · <leey1994@163.com>
-> 仓库 <https://github.com/leey1994/shuangting> · 主页 <https://leey1994.github.io/shuangting/> · [更新日志](CHANGELOG.md)
+主页 <https://leey1994.github.io/shuangting/> ·
 
 插件化音乐播放器，功能对齐 [MusicFree](https://github.com/maotoumao/MusicFree) 的插件协议，界面完全自行重绘（珊瑚→琥珀渐变、玻璃卡片、黑胶封面、悬浮胶囊迷你播放器）。
 

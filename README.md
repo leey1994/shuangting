@@ -1,9 +1,8 @@
 # 爽听 ShuangTing
 
-> 当前版本 **v1.1.1** · 作者 **leey** · <leey1994@163.com>
-> 仓库 <https://github.com/leey1994/shuangting> · 主页 <https://leey1994.github.io/shuangting/> · [更新日志](CHANGELOG.md)
+> 当前版本 **v1.1.1** 
 
-插件化音乐播放器，功能对齐 [MusicFree](https://github.com/maotoumao/MusicFree) 的插件协议，界面完全自行重绘（珊瑚→琥珀渐变、玻璃卡片、黑胶封面、悬浮胶囊迷你播放器）。
+插件化音乐播放器。
 
 Flutter 实现，支持 **Android / Windows**，默认简体中文，可切换 English。
 
@@ -107,12 +106,6 @@ gh release create v1.1.0 dist/android/app-arm64-v8a-release.apk   dist/android/a
 
 App 的自动更新读取 `releases/latest`，因此发布时请把三个 APK 都作为 asset 上传，名称保留 `arm64` / `armeabi` / `x86_64` 字样以便自动选择。
 
-## 作者
 
-| | |
-|---|---|
-| 作者 | leey |
-| 邮箱 | <leey1994@163.com> |
-| 仓库 | <https://github.com/leey1994/shuangting> |
 
 仅供个人学习与研究使用。

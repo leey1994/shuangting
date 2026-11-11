@@ -60,7 +60,9 @@ Future<void> main() async {
 
   runApp(const ShuangTingApp());
 
+  // 托盘在窗口就绪、首帧渲染后再注册，避免和窗口创建抢消息循环。
   if (!kIsWeb && Platform.isWindows) {
+    await Future<void>.delayed(const Duration(seconds: 2));
     await DesktopTray.instance.init();
   }
 }

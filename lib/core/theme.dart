@@ -31,6 +31,17 @@ class AppPalette {
   static Color muted(BuildContext context) =>
       isDark(context) ? const Color(0xFF9AA3B2) : const Color(0xFF6E7686);
 
+  /// 从当前主题色派生的点缀色：同一套强调色下所有图标/卡片一起换色，
+  /// 不再各处写死珊瑚/海蓝，避免换主题后部分界面「没跟着换」。
+  static Color accent(BuildContext context, int step) {
+    final hsl = HSLColor.fromColor(seed(context));
+    return hsl
+        .withHue((hsl.hue + step * 34) % 360)
+        .withSaturation((hsl.saturation * 0.9).clamp(0.35, 1.0))
+        .withLightness(isDark(context) ? 0.68 : 0.52)
+        .toColor();
+  }
+
   static LinearGradient brandGradient(BuildContext context) {
     final s = seed(context);
     final hsl = HSLColor.fromColor(s);

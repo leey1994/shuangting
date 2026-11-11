@@ -64,13 +64,12 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
             body: const EmptyView(text: '还没有正在播放的歌曲', icon: Icons.music_note_rounded),
           );
         }
-        final dark = AppPalette.isDark(context);
         return Scaffold(
           backgroundColor: Colors.transparent,
           body: Stack(
             fit: StackFit.expand,
             children: [
-              _Backdrop(artwork: song.artwork, dark: dark),
+              _Backdrop(artwork: song.artwork),
               SafeArea(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -165,9 +164,8 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
 }
 
 class _Backdrop extends StatelessWidget {
-  const _Backdrop({required this.artwork, required this.dark});
+  const _Backdrop({required this.artwork});
   final String artwork;
-  final bool dark;
 
   @override
   Widget build(BuildContext context) {
@@ -182,9 +180,9 @@ class _Backdrop extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        ColoredBox(color: dark ? const Color(0xFF0A0C10) : const Color(0xFFF4EFE8)),
+        ColoredBox(color: Theme.of(context).colorScheme.surface),
         Opacity(
-          opacity: dark ? 0.42 : 0.28,
+          opacity: Theme.of(context).brightness == Brightness.dark ? 0.42 : 0.28,
           child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 60, sigmaY: 60), child: image),
         ),
         DecoratedBox(
@@ -193,8 +191,8 @@ class _Backdrop extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                (dark ? Colors.black : Colors.white).withValues(alpha: 0.15),
-                (dark ? const Color(0xFF0A0C10) : const Color(0xFFF4EFE8)).withValues(alpha: 0.86),
+                (Theme.of(context).brightness == Brightness.dark ? Colors.black : Colors.white).withValues(alpha: 0.15),
+                Theme.of(context).colorScheme.surface.withValues(alpha: 0.86),
               ],
             ),
           ),
@@ -269,7 +267,7 @@ class _CoverView extends StatelessWidget {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF14161C),
+                color: const Color(0xFF14161C), // 黑胶本体保持深色，两种主题下都是唱片质感
                 boxShadow: [
                   BoxShadow(
                     color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.28),

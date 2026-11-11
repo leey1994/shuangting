@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart' hide Text;
+import 'package:url_launcher/url_launcher.dart';
 import './widgets/l10n_text.dart';
 
 import '../core/app_info.dart';
@@ -65,11 +66,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
     }
   }
 
-  void _openPage() {
+  Future<void> _openPage() async {
     try {
-      if (Platform.isWindows) {
-        Process.start('cmd', ['/c', 'start', '', widget.info.pageUrl], mode: ProcessStartMode.detached);
-      }
+      await launchUrl(Uri.parse(widget.info.pageUrl), mode: LaunchMode.externalApplication);
     } catch (_) {}
   }
 
@@ -141,9 +140,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
           ),
         if (!busy && !_canInstall)
           FilledButton(
-            onPressed: () {
-              _openPage();
-              Navigator.of(context).pop();
+            onPressed: () async {
+              await _openPage();
+              if (context.mounted) Navigator.of(context).pop();
             },
             child: const Text('前往下载页'),
           ),

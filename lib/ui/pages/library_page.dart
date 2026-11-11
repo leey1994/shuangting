@@ -46,11 +46,11 @@ class LibraryPage extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
                 child: Row(
                   children: [
-                    Expanded(child: _QuickCard(icon: Icons.favorite_rounded, title: '我喜欢', count: fav.songs.length, unit: '首', color: const Color(0xFFFF5C8A), onTap: () => _openPlaylist(context, fav))),
+                    Expanded(child: _QuickCard(icon: Icons.favorite_rounded, title: '我喜欢', count: fav.songs.length, unit: '首', color: AppPalette.accent(context, 0), onTap: () => _openPlaylist(context, fav))),
                     const SizedBox(width: 10),
-                    Expanded(child: _QuickCard(icon: Icons.download_rounded, title: '下载管理', count: DownloadService.instance.tasks.length, unit: '项', color: const Color(0xFFF5A524), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DownloadsPage())))),
+                    Expanded(child: _QuickCard(icon: Icons.download_rounded, title: '下载管理', count: DownloadService.instance.tasks.length, unit: '项', color: AppPalette.accent(context, 2), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DownloadsPage())))),
                     const SizedBox(width: 10),
-                    Expanded(child: _QuickCard(icon: Icons.folder_special_rounded, title: '本地音乐', count: LocalLibrary.instance.songs.length, unit: '首', color: const Color(0xFF37C08A), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LocalMusicPage())))),
+                    Expanded(child: _QuickCard(icon: Icons.folder_special_rounded, title: '本地音乐', count: LocalLibrary.instance.songs.length, unit: '首', color: AppPalette.accent(context, 3), onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LocalMusicPage())))),
                   ],
                 ),
               ),

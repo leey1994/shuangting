@@ -1,8 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/l10n_text.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_info.dart';
 import '../../core/theme.dart';
@@ -20,12 +19,11 @@ class AboutPage extends StatelessWidget {
 
   Future<void> _open(BuildContext context, String url) async {
     try {
-      if (Platform.isWindows) {
-        await Process.start('cmd', ['/c', 'start', '', url], mode: ProcessStartMode.detached);
-        return;
-      }
-    } catch (_) {}
-    if (context.mounted) await _copy(context, url, '链接');
+      final ok = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) await _copy(context, url, '链接');
+    } catch (_) {
+      if (context.mounted) await _copy(context, url, '链接');
+    }
   }
 
   @override

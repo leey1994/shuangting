@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'app_info.dart';
+
 class AppPaths {
   static late Directory docs;
   static late Directory plugins;
@@ -163,7 +165,9 @@ class Settings extends ChangeNotifier {
     'backgroundBlur': 0.0,
     'language': 'zh',
     'autoUpdatePlugin': false,
-    'subscribeUrl': '',
+    'subscribeUrl': AppInfo.recommendedSubscribeUrl,
+    'firstRunDone': false,
+    'closeToTray': true,
     'webdavUrl': '',
     'webdavUsername': '',
     'webdavPassword': '',
@@ -632,5 +636,22 @@ class L10n {
     '风格': 'Style',
     '语种': 'Language',
     '流派': 'Genre',
+    '首次使用 · 订阅音源': 'First run · Add music sources',
+    '爽听本身不内置任何音源。请先通过 hebijunge 的 MusicFree 插件订阅站安装插件，之后即可搜索、播放、查看榜单与歌词。': 'ShuangTing ships with no music sources. Install MusicFree plugins from the hebijunge subscription site first, then search, playback, charts and lyrics all work.',
+    '推荐「常用六平台」清单：QQ / 酷我 / 酷狗 / 咪咕 / 网易云 / 汽水，体积小、成功率高；需要更多音源可在订阅站选择分类或全部插件。': 'Recommended: the 6-platform list (QQ, Kuwo, Kugou, Migu, NetEase, Qishui). It is small and reliable; open the site for more categories or all plugins.',
+    '打开订阅站': 'Open plugin site',
+    '订阅常用六平台': 'Subscribe to 6 platforms',
+    '正在安装常用音源插件…': 'Installing music source plugins…',
+    '无法打开浏览器：': 'Cannot open browser: ',
+    '已安装': 'Installed',
+    '个插件': ' plugins',
+    '订阅失败：': 'Subscription failed: ',
+    '可打开订阅站手动复制 .json 链接': 'Open the site and copy a .json link manually',
+    '推荐音源订阅站': 'Recommended plugin site',
+    'https://hebijunge.github.io/musicfree-plugins/\n首次使用建议订阅「常用六平台」，也可打开订阅站选择其它分类。': 'https://hebijunge.github.io/musicfree-plugins/\nFor first use we recommend the 6-platform list. Open the site to pick other categories.',
+    '常用六平台': '6 platforms',
+    '音源插件': 'music source plugins',
+    '关闭窗口时最小化到托盘': 'Minimize to tray on close',
+    '图标在任务栏右下角「隐藏图标」里，可拖出固定': 'The icon lives in the taskbar overflow ("^") at the bottom right; drag it out to pin it',
   };
 }

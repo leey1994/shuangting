@@ -16,6 +16,11 @@ class AppInfo {
   static const latestReleaseApi =
       'https://api.github.com/repos/leey1994/shuangting/releases/latest';
 
+  /// 推荐的 MusicFree 插件订阅站与「常用六平台」清单。
+  static const pluginSiteUrl = 'https://hebijunge.github.io/musicfree-plugins/';
+  static const recommendedSubscribeUrl =
+      'https://gh.padao.fun/https://raw.githubusercontent.com/hebijunge/musicfree-plugins/master/sub/padao/main.json';
+
   /// 构建期默认值，运行时由 [load] 覆盖为真实版本。
   static String version = '1.1.0';
   static String buildNumber = '2002';

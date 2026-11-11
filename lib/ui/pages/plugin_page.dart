@@ -10,6 +10,7 @@ import '../../core/plugin/plugin_manager.dart';
 import '../../core/settings.dart';
 import '../../core/theme.dart';
 import '../dialogs.dart';
+import '../first_run_guide.dart';
 import '../widgets/common.dart';
 
 class PluginPage extends StatefulWidget {
@@ -97,7 +98,12 @@ class _PluginPageState extends State<PluginPage> {
   }
 
   Future<void> _subscribe() async {
-    final url = await promptText(context, title: '订阅链接', hint: 'plugins.json 订阅地址');
+    final url = await promptText(
+      context,
+      title: '订阅链接',
+      hint: 'plugins.json 订阅地址',
+      initial: Settings.instance.get<String>('subscribeUrl'),
+    );
     if (url == null || url.trim().isEmpty) return;
     await Settings.instance.set('subscribeUrl', url.trim());
     await _run(
@@ -308,6 +314,49 @@ class _PluginPageState extends State<PluginPage> {
           body: records.isEmpty
               ? Column(
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.auto_awesome_rounded, color: Theme.of(context).colorScheme.primary),
+                                  const SizedBox(width: 10),
+                                  const Expanded(child: Text('推荐音源订阅站', style: TextStyle(fontWeight: FontWeight.w700))),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'https://hebijunge.github.io/musicfree-plugins/\n首次使用建议订阅「常用六平台」，也可打开订阅站选择其它分类。',
+                                style: TextStyle(fontSize: 11.5, height: 1.5, color: AppPalette.muted(context)),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () => FirstRunGuide.openSite(context),
+                                      child: const Text('打开订阅站'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: FilledButton(
+                                      onPressed: () => FirstRunGuide.subscribeRecommended(context),
+                                      child: const Text('订阅常用六平台'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     const Expanded(
                       child: EmptyView(
                         icon: Icons.extension_rounded,

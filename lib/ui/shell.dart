@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart' hide Text;
+
 import './widgets/l10n_text.dart';
 
 import '../core/plugin/plugin_manager.dart';
 import '../core/settings.dart';
 import '../core/theme.dart';
+import 'first_run_guide.dart';
 import 'update_flow.dart';
 import 'pages/discover_page.dart';
 import 'pages/library_page.dart';
@@ -38,6 +40,7 @@ class _AppShellState extends State<AppShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(PluginManager.instance.warmup());
+      unawaited(FirstRunGuide.maybeShow(context));
       unawaited(_maybeCheckUpdate());
     });
   }
@@ -79,33 +82,35 @@ class _AppShellState extends State<AppShell> {
       ],
     );
 
-    return AppBackground(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBody: true,
-        body: SafeArea(
-          bottom: !wide,
-          child: wide
-              ? Row(
-                  children: [
-                    _SideNav(index: _index, tabs: _tabs, onChanged: _select),
-                    Expanded(child: content),
-                  ],
-                )
-              : Column(
-                  children: [
-                    Expanded(child: content),
-                    _BottomNav(index: _index, tabs: _tabs, onChanged: _select),
-                  ],
-                ),
-        ),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      extendBody: true,
+      body: SafeArea(
+        bottom: !wide,
+        child: wide
+            ? Row(
+                children: [
+                  _SideNav(index: _index, tabs: _tabs, onChanged: _select),
+                  Expanded(child: content),
+                ],
+              )
+            : Column(
+                children: [
+                  Expanded(child: content),
+                  _BottomNav(index: _index, tabs: _tabs, onChanged: _select),
+                ],
+              ),
       ),
     );
   }
 }
 
 class _SideNav extends StatelessWidget {
-  const _SideNav({required this.index, required this.tabs, required this.onChanged});
+  const _SideNav({
+    required this.index,
+    required this.tabs,
+    required this.onChanged,
+  });
   final int index;
   final List<_Tab> tabs;
   final ValueChanged<int> onChanged;
@@ -117,7 +122,8 @@ class _SideNav extends StatelessWidget {
       builder: (context, constraints) {
         const gap = 6.0;
         const padding = 20.0;
-        final available = constraints.maxHeight - padding - gap * (tabs.length - 1);
+        final available =
+            constraints.maxHeight - padding - gap * (tabs.length - 1);
         final itemHeight = max(46.0, available / tabs.length);
         final itemWidth = min(112.0, itemHeight * 1.3);
 
@@ -134,7 +140,9 @@ class _SideNav extends StatelessWidget {
               const Spacer(),
               for (var i = 0; i < tabs.length; i++)
                 Padding(
-                  padding: EdgeInsets.only(bottom: i == tabs.length - 1 ? 0 : gap),
+                  padding: EdgeInsets.only(
+                    bottom: i == tabs.length - 1 ? 0 : gap,
+                  ),
                   child: InkWell(
                     onTap: () => onChanged(i),
                     borderRadius: BorderRadius.circular(18),
@@ -142,9 +150,14 @@ class _SideNav extends StatelessWidget {
                       duration: const Duration(milliseconds: 180),
                       width: itemWidth,
                       height: itemHeight,
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
-                        color: index == i ? primary.withValues(alpha: 0.18) : Colors.transparent,
+                        color: index == i
+                            ? primary.withValues(alpha: 0.18)
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: Column(
@@ -153,7 +166,9 @@ class _SideNav extends StatelessWidget {
                           Icon(
                             index == i ? tabs[i].activeIcon : tabs[i].icon,
                             size: 19,
-                            color: index == i ? primary : AppPalette.muted(context),
+                            color: index == i
+                                ? primary
+                                : AppPalette.muted(context),
                           ),
                           const SizedBox(height: 3),
                           Flexible(
@@ -163,8 +178,12 @@ class _SideNav extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 10,
-                                fontWeight: index == i ? FontWeight.w700 : FontWeight.w500,
-                                color: index == i ? primary : AppPalette.muted(context),
+                                fontWeight: index == i
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: index == i
+                                    ? primary
+                                    : AppPalette.muted(context),
                               ),
                             ),
                           ),
@@ -190,7 +209,11 @@ class _Tab {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.index, required this.tabs, required this.onChanged});
+  const _BottomNav({
+    required this.index,
+    required this.tabs,
+    required this.onChanged,
+  });
   final int index;
   final List<_Tab> tabs;
   final ValueChanged<int> onChanged;
@@ -207,7 +230,9 @@ class _BottomNav extends StatelessWidget {
           borderRadius: BorderRadius.circular(28),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: AppPalette.isDark(context) ? 0.35 : 0.08),
+              color: Colors.black.withValues(
+                alpha: AppPalette.isDark(context) ? 0.35 : 0.08,
+              ),
               blurRadius: 20,
               offset: const Offset(0, 5),
             ),
@@ -226,7 +251,9 @@ class _BottomNav extends StatelessWidget {
                       duration: const Duration(milliseconds: 180),
                       height: 60,
                       decoration: BoxDecoration(
-                        color: index == i ? primary.withValues(alpha: 0.16) : Colors.transparent,
+                        color: index == i
+                            ? primary.withValues(alpha: 0.16)
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(22),
                       ),
                       child: Column(
@@ -235,7 +262,9 @@ class _BottomNav extends StatelessWidget {
                           Icon(
                             index == i ? tabs[i].activeIcon : tabs[i].icon,
                             size: 22,
-                            color: index == i ? primary : AppPalette.muted(context),
+                            color: index == i
+                                ? primary
+                                : AppPalette.muted(context),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -244,8 +273,12 @@ class _BottomNav extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 10.5,
-                              fontWeight: index == i ? FontWeight.w700 : FontWeight.w500,
-                              color: index == i ? primary : AppPalette.muted(context),
+                              fontWeight: index == i
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: index == i
+                                  ? primary
+                                  : AppPalette.muted(context),
                             ),
                           ),
                         ],

@@ -50,7 +50,7 @@ class MePage extends StatelessWidget {
                         icon: Icons.playlist_play_rounded,
                         label: '我喜欢',
                         value: '${fav.songs.length}',
-                        color: const Color(0xFFFF5C8A),
+                        color: AppPalette.accent(context, 0),
                         onTap: () => Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => MusicListDetailPage(
                             title: fav.name,
@@ -68,7 +68,7 @@ class MePage extends StatelessWidget {
                         icon: Icons.history_rounded,
                         label: '最近播放',
                         value: '${lib.history.length}',
-                        color: const Color(0xFF4D8DFF),
+                        color: AppPalette.accent(context, 1),
                         onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HistoryPage())),
                       ),
                     ),
@@ -78,7 +78,7 @@ class MePage extends StatelessWidget {
                         icon: Icons.download_rounded,
                         label: '下载',
                         value: '${DownloadService.instance.tasks.length}',
-                        color: const Color(0xFFF5A524),
+                        color: AppPalette.accent(context, 2),
                         onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DownloadsPage())),
                       ),
                     ),
@@ -88,18 +88,18 @@ class MePage extends StatelessWidget {
               const SizedBox(height: 8),
               _MenuGroup(
                 items: [
-                  _MenuItem(Icons.folder_special_rounded, '本地音乐', '${LocalLibrary.instance.songs.length} 首', const Color(0xFF37C08A), () => _push(context, const LocalMusicPage())),
-                  _MenuItem(Icons.library_music_rounded, '我的歌单', '${lib.userPlaylists.length} 个', const Color(0xFF8B5CF6), () => _push(context, const LibraryPage())),
-                  _MenuItem(Icons.extension_rounded, '插件管理', '${PluginManager.instance.records.length} 个已安装', const Color(0xFF4D8DFF), () => _push(context, const PluginPage())),
+                  _MenuItem(Icons.folder_special_rounded, '本地音乐', '${LocalLibrary.instance.songs.length} 首', AppPalette.accent(context, 3), () => _push(context, const LocalMusicPage())),
+                  _MenuItem(Icons.library_music_rounded, '我的歌单', '${lib.userPlaylists.length} 个', AppPalette.accent(context, 4), () => _push(context, const LibraryPage())),
+                  _MenuItem(Icons.extension_rounded, '插件管理', '${PluginManager.instance.records.length} 个已安装', AppPalette.accent(context, 1), () => _push(context, const PluginPage())),
                 ],
               ),
               const SizedBox(height: 12),
               _MenuGroup(
                 items: [
-                  _MenuItem(Icons.palette_outlined, '主题与背景', AppPalette.presetNames[_presetIndex()], const Color(0xFFFF6B5B), () => _push(context, const ThemePage())),
-                  _MenuItem(Icons.backup_outlined, '备份与恢复', 'WebDAV / 本地', const Color(0xFF37C08A), () => _push(context, const BackupPage())),
-                  _MenuItem(Icons.settings_outlined, '设置', L10n.instance.en ? 'English' : '简体中文', const Color(0xFF6E7686), () => _push(context, const SettingsPage())),
-                  _MenuItem(Icons.info_outline_rounded, '关于', 'v${AppInfo.version} · ${AppInfo.author}', const Color(0xFF9AA3B2), () => _push(context, const AboutPage())),
+                  _MenuItem(Icons.palette_outlined, '主题与背景', AppPalette.presetNames[_presetIndex()], AppPalette.accent(context, 0), () => _push(context, const ThemePage())),
+                  _MenuItem(Icons.backup_outlined, '备份与恢复', 'WebDAV / 本地', AppPalette.accent(context, 3), () => _push(context, const BackupPage())),
+                  _MenuItem(Icons.settings_outlined, '设置', L10n.instance.en ? 'English' : '简体中文', AppPalette.muted(context), () => _push(context, const SettingsPage())),
+                  _MenuItem(Icons.info_outline_rounded, '关于', 'v${AppInfo.version} · ${AppInfo.author}', AppPalette.muted(context), () => _push(context, const AboutPage())),
                 ],
               ),
               const SizedBox(height: 26),

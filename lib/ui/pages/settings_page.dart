@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/l10n_text.dart';
 
@@ -239,6 +241,18 @@ class SettingsPage extends StatelessWidget {
                 value: s.get<bool>('autoCheckUpdate'),
                 onChanged: (v) => s.set('autoCheckUpdate', v),
               ),
+              if (Platform.isWindows) ...[
+                SwitchListTile(
+                  secondary: const Icon(Icons.window_rounded),
+                  title: const Text('关闭窗口时最小化到托盘'),
+                  subtitle: Text(
+                    '图标在任务栏右下角「隐藏图标」里，可拖出固定',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: s.get<bool>('closeToTray'),
+                  onChanged: (v) => s.set('closeToTray', v),
+                ),
+              ],
             ],
           ),
         );

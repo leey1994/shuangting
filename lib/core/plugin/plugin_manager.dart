@@ -430,9 +430,14 @@ class PluginManager extends ChangeNotifier {
     final res = await _call(record, 'search', [query, page, type], timeout: const Duration(seconds: 30));
     if (!res.ok || res.value is! Map) return null;
     final map = Map<String, dynamic>.from(res.value as Map);
+    // 部分插件不在单条结果里写 platform，统一补上，便于跨音源聚合与标来源。
+    final data = ((map['data'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e)..putIfAbsent('platform', () => record.platform))
+        .toList();
     final result = SearchPageResult(
       platform: record.platform,
-      data: (map['data'] as List?) ?? const [],
+      data: data,
       isEnd: map['isEnd'] == true,
     );
     _setCached(key, result);

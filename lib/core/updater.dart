@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -107,15 +108,11 @@ class Updater {
   }
 
   static String _androidAbi() {
-    try {
-      // 只能拿到 CPU 架构字符串，够用来匹配资产名。
-      final arch = Platform.version.toLowerCase();
-      if (arch.contains('arm64') || arch.contains('aarch64')) return 'arm64';
-      if (arch.contains('x64') || arch.contains('x86_64')) return 'x86_64';
-      return 'armeabi';
-    } catch (_) {
-      return 'arm64';
-    }
+    final abi = Abi.current().toString().toLowerCase();
+    if (abi.contains('arm64') || abi.contains('aarch64')) return 'arm64';
+    if (abi.contains('x86_64')) return 'x86_64';
+    if (abi.contains('arm')) return 'armeabi';
+    return 'arm64';
   }
 
   /// 下载到缓存目录，返回本地文件。

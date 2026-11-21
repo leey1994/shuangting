@@ -198,29 +198,24 @@ class _QuickCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainer,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(12)),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(t(title), style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
-                  Text('$count ${t(unit)}', style: TextStyle(fontSize: 10.5, color: AppPalette.muted(context))),
-                ],
-              ),
-            ),
+            const SizedBox(height: 7),
+            Text(t(title), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text('$count ${t(unit)}', style: TextStyle(fontSize: 10, color: AppPalette.muted(context))),
           ],
         ),
       ),

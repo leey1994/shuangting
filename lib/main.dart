@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -7,6 +8,7 @@ import 'package:window_manager/legacy.dart' as wm;
 
 import 'app.dart';
 import 'core/app_info.dart';
+import 'core/daily_recommendation.dart';
 import 'core/desktop/desktop_tray.dart';
 import 'core/download_service.dart';
 import 'core/library_store.dart';
@@ -16,6 +18,13 @@ import 'core/music_audio_handler.dart';
 import 'core/player/player_service.dart';
 import 'core/plugin/plugin_manager.dart';
 import 'core/settings.dart';
+
+Future<void> _playDailyOnStart() async {
+  await DailyRecommendation.instance.ensureToday();
+  final songs = DailyRecommendation.instance.songs;
+  if (songs.isEmpty || PlayerService.instance.playing) return;
+  await PlayerService.instance.playQueue(songs);
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +70,11 @@ Future<void> main() async {
   }
 
   runApp(const ShuangTingApp());
+
+  // 默认播放今天的推荐；用户显式开启「启动时继续播放」时尊重其选择。
+  if (!Settings.instance.get<bool>('autoPlayOnStart')) {
+    unawaited(_playDailyOnStart());
+  }
 
   // 托盘在窗口就绪、首帧渲染后再注册，避免和窗口创建抢消息循环。
   if (!kIsWeb && Platform.isWindows) {

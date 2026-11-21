@@ -326,7 +326,7 @@ class _SearchPageState extends State<SearchPage> {
               },
             ),
           ),
-          if (plugins.length > 1)
+          if (plugins.length > 1 && _type != 'music' && _type != 'album')
             SizedBox(
               height: 40,
               child: ListView.separated(
@@ -356,6 +356,117 @@ class _SearchPageState extends State<SearchPage> {
           Expanded(child: _buildBody(plugins)),
         ],
       ),
+    );
+  }
+
+  List<_AggregatedResult> _aggregated() {
+    final byKey = <String, _AggregatedResult>{};
+    var rank = 0;
+    for (final plugin in _targets) {
+      for (final raw in (_results[plugin.platform] ?? const []).whereType<Map>()) {
+        final json = Map<String, dynamic>.from(raw);
+        final source = (json['platform'] ?? plugin.platform).toString();
+        if (source.isEmpty) json['platform'] = plugin.platform;
+        final title = (json['title'] ?? json['name'] ?? '').toString().trim().toLowerCase();
+        final artist = (json['artist'] ?? '').toString().trim().toLowerCase();
+        if (title.isEmpty && artist.isEmpty) continue;
+        final key = '$title|$artist';
+        final hit = byKey[key];
+        if (hit != null) {
+          hit.sources.add(source);
+          continue;
+        }
+        byKey[key] = _AggregatedResult(json, <String>{source}, rank++);
+      }
+    }
+    final list = byKey.values.toList();
+    // 相关度：多源命中的排前面；同分保持插件返回顺序。
+    list.sort((a, b) {
+      final c = b.sources.length.compareTo(a.sources.length);
+      return c != 0 ? c : a.rank.compareTo(b.rank);
+    });
+    return list;
+  }
+
+  Widget _buildAggregated() {
+    final entries = _aggregated();
+    if (entries.isEmpty) {
+      if (_loading.isNotEmpty) return const LoadingView(text: '正在搜索');
+      return const EmptyView(icon: Icons.search_off_rounded, text: '没有找到相关结果');
+    }
+    final songs = entries.map((e) => MusicItem.fromJson(e.raw)).toList();
+    final loading = _loading.isNotEmpty;
+    final allEnded = _targets.isNotEmpty && _targets.every((p) => _ended[p.platform] == true);
+    return ListView(
+      children: [
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            child: LinearProgressIndicator(),
+          ),
+        for (final entry in entries) _aggregatedTile(entry, songs),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Center(
+            child: loading
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : allEnded
+                    ? Tr('没有更多了', style: TextStyle(fontSize: 11, color: AppPalette.muted(context)))
+                    : TextButton(
+                        onPressed: () => _search(reset: false),
+                        child: const Tr('加载更多'),
+                      ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _aggregatedTile(_AggregatedResult entry, List<MusicItem> songs) {
+    final source = entry.sources.join('/');
+    if (_type == 'album') {
+      final album = AlbumItem.fromJson(entry.raw);
+      return ListTile(
+        leading: CoverImage(path: album.artwork, size: 48, radius: 12),
+        title: Text(album.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          [album.artist, album.date, album.worksNum > 0 ? '${album.worksNum} 首' : '', source]
+              .where((e) => e.isNotEmpty)
+              .join(' · '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 11, color: AppPalette.muted(context)),
+        ),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => MusicListDetailPage(
+            title: album.title,
+            artwork: album.artwork,
+            subtitle: album.artist,
+            description: album.description,
+            album: album,
+            kind: MediaListKind.album,
+          ),
+        )),
+      );
+    }
+    final song = MusicItem.fromJson(entry.raw);
+    return MusicTile(
+      song: song,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(source, style: TextStyle(fontSize: 10, color: AppPalette.muted(context))),
+          IconButton(
+            onPressed: () => showSongActions(context, song, contextSongs: songs),
+            icon: Icon(Icons.more_horiz_rounded, size: 20, color: AppPalette.muted(context)),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+      onTap: () {
+        final i = songs.indexWhere((e) => e.key == song.key);
+        PlayerService.instance.playQueue(songs, startIndex: i < 0 ? 0 : i);
+      },
     );
   }
 
@@ -420,6 +531,9 @@ class _SearchPageState extends State<SearchPage> {
         text: '所选插件不支持「${_types.firstWhere((e) => e.$1 == _type).$2}」搜索',
       );
     }
+
+    // 单曲/专辑跨音源聚合：不按插件分段，按相关度合并成一个列表。
+    if (_type == 'music' || _type == 'album') return _buildAggregated();
 
     final sections = <Widget>[];
     for (final plugin in targets) {
@@ -600,4 +714,11 @@ class _SearchPageState extends State<SearchPage> {
     }
     return ListView(children: sections);
   }
+}
+
+class _AggregatedResult {
+  const _AggregatedResult(this.raw, this.sources, this.rank);
+  final Map<String, dynamic> raw;
+  final Set<String> sources;
+  final int rank;
 }

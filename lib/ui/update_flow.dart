@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart' hide Text;
-import 'package:url_launcher/url_launcher.dart';
 import './widgets/l10n_text.dart';
 
 import '../core/app_info.dart';
@@ -64,12 +63,6 @@ class _UpdateDialogState extends State<UpdateDialog> {
         _error = '$e';
       });
     }
-  }
-
-  Future<void> _openPage() async {
-    try {
-      await launchUrl(Uri.parse(widget.info.pageUrl), mode: LaunchMode.externalApplication);
-    } catch (_) {}
   }
 
   @override
@@ -139,12 +132,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
             child: Text(Platform.isAndroid ? '下载并安装' : '下载更新'),
           ),
         if (!busy && !_canInstall)
-          FilledButton(
-            onPressed: () async {
-              await _openPage();
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            child: const Text('前往下载页'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text(
+              '当前平台没有可下载的更新包',
+              style: TextStyle(fontSize: 12, color: AppPalette.muted(context)),
+            ),
           ),
       ],
     );

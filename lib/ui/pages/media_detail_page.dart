@@ -22,6 +22,7 @@ class MusicListDetailPage extends StatefulWidget {
     this.sheet,
     this.album,
     this.playlist,
+    this.plugin,
     required this.kind,
   });
 
@@ -32,6 +33,7 @@ class MusicListDetailPage extends StatefulWidget {
   final SheetItem? sheet;
   final AlbumItem? album;
   final Playlist? playlist;
+  final PluginRecord? plugin;
   final MediaListKind kind;
 
   @override
@@ -49,6 +51,7 @@ class _MusicListDetailPageState extends State<MusicListDetailPage> {
 
   Playlist? get _playlist => widget.playlist;
   PluginRecord? get _plugin {
+    if (widget.plugin != null) return widget.plugin;
     final platform = widget.sheet?.platform ?? widget.album?.platform ?? '';
     return PluginManager.instance.byPlatform(platform);
   }

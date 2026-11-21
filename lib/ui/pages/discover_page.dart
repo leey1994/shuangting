@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart' hide Text;
 import '../widgets/l10n_text.dart';
 
+import '../../core/daily_recommendation.dart';
 import '../../core/models.dart';
 import '../../core/player/player_service.dart';
 import '../../core/plugin/plugin_manager.dart';
@@ -165,7 +166,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
     // 榜单聚合只取前 6 个音源：QuickJS 运行时创建发生在主 isolate，
     // 插件过多时逐个创建会长时间阻塞首帧（白屏），其余音源按需再拉。
     final plugins = _plugins
-        .where((e) => e.methods.contains('getTopLists'))
+        .where((e) => e.methods.contains('getTopLists') && e.methods.contains('getTopListDetail'))
         .take(_maxAggregateSources)
         .toList();
     if (plugins.isEmpty) {
@@ -237,6 +238,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
       _aggregateSongs.add(entry);
       _aggregateSongCounts[entry.source] = count + 1;
     }
+    if (data.songs.isNotEmpty) {
+      DailyRecommendation.instance.updatePool(data.songs.map((e) => e.song));
+    }
     if (mounted) setState(() {});
   }
 
@@ -253,15 +257,15 @@ class _DiscoverPageState extends State<DiscoverPage> {
           for (final raw in (item['data'] as List).whereType<Map>()) {
             final map = _withPlatform(raw, plugin.platform);
             final sheet = SheetItem.fromJson(map);
-            if (sheet.id.isEmpty && sheet.title.isEmpty) continue;
-            ranks.add(_AggregateRank(sheet, plugin.platform, group));
+            if (sheet.id.isEmpty) continue;
+            ranks.add(_AggregateRank(sheet, plugin.platform, group, plugin));
             first ??= sheet;
           }
         } else if (item['id'] != null || item['title'] != null) {
           final map = _withPlatform(item, plugin.platform);
           final sheet = SheetItem.fromJson(map);
-          if (sheet.id.isEmpty && sheet.title.isEmpty) continue;
-          ranks.add(_AggregateRank(sheet, plugin.platform, '榜单'));
+          if (sheet.id.isEmpty) continue;
+          ranks.add(_AggregateRank(sheet, plugin.platform, '榜单', plugin));
           first ??= sheet;
         }
       }
@@ -284,6 +288,11 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Map<String, dynamic> _withPlatform(Map raw, String platform) {
     final map = Map<String, dynamic>.from(raw);
     if ((map['platform'] ?? '').toString().isEmpty) map['platform'] = platform;
+    // 插件的 getTopListDetail 只认 id 键；SheetItem.id 有 fallback，回传时要规整。
+    if ((map['id'] ?? '').toString().isEmpty) {
+      final sid = (map['sid'] ?? map['listId'] ?? map['specialId'] ?? map['tagId'] ?? '').toString();
+      if (sid.isNotEmpty) map['id'] = sid;
+    }
     return map;
   }
 
@@ -316,7 +325,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
                 listenable: PlayerService.instance.pageListenable,
                 builder: (_, _) => const _HeroHeader(),
               ),
-              ..._buildAggregate(),
+              ..._buildDaily(),
+              ..._buildHotSongs(),
+              ..._buildAggregateRanks(),
               if (plugins.isEmpty)
                 _bootstrapping
                     ? const Padding(
@@ -362,21 +373,93 @@ class _DiscoverPageState extends State<DiscoverPage> {
     );
   }
 
-  List<Widget> _buildAggregate() {
-    final ranks = _aggregateRanks;
+  List<Widget> _buildDaily() {
+    return [
+      ListenableBuilder(
+        listenable: DailyRecommendation.instance,
+        builder: (context, _) {
+          final songs = DailyRecommendation.instance.songs;
+          if (songs.isEmpty) return const SizedBox.shrink();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SectionTitle('每日推荐', trailing: '每天 ${songs.length} ${t('首')}'),
+              SizedBox(
+                height: 138,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: songs.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) {
+                    final song = songs[i];
+                    return SizedBox(
+                      width: 96,
+                      child: GestureDetector(
+                        onTap: () => PlayerService.instance.playQueue(songs, startIndex: i),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CoverImage(path: song.artwork, size: 96, radius: 18),
+                            const SizedBox(height: 6),
+                            Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12.5)),
+                            Text(song.displayArtist, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: AppPalette.muted(context))),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ];
+  }
+
+  List<Widget> _buildHotSongs() {
     final songs = _aggregateSongs;
+    if (songs.isEmpty) return const [];
+    return [
+      SectionTitle('全源热歌', trailing: '${songs.length} ${t('首')}'),
+      ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        itemCount: songs.length > 30 ? 30 : songs.length,
+        itemBuilder: (context, i) {
+          final entry = songs[i];
+          return MusicTile(
+            song: entry.song,
+            onTap: () => PlayerService.instance.playQueue(
+              songs.map((e) => e.song).toList(),
+              startIndex: i,
+            ),
+            trailing: Text(
+              entry.source,
+              style: TextStyle(fontSize: 10, color: AppPalette.muted(context)),
+            ),
+          );
+        },
+      ),
+    ];
+  }
+
+  List<Widget> _buildAggregateRanks() {
+    final ranks = _aggregateRanks;
     return [
       SectionTitle(
         t('聚合榜单'),
         trailing: '${ranks.length} ${t('个')}',
         onTrailing: () => _loadAggregate(force: true),
       ),
-      if (_aggregateLoading && ranks.isEmpty && songs.isEmpty)
+      if (_aggregateLoading && ranks.isEmpty && _aggregateSongs.isEmpty)
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 30),
           child: LoadingView(text: '正在聚合各音源榜单'),
         ),
-      if (!_aggregateLoading && ranks.isEmpty && songs.isEmpty)
+      if (!_aggregateLoading && ranks.isEmpty && _aggregateSongs.isEmpty)
         EmptyView(
           icon: Icons.leaderboard_outlined,
           text: '暂无可聚合的榜单\n安装或启用插件后下拉刷新',
@@ -398,31 +481,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
             itemBuilder: (_, i) => _rankCard(ranks[i]),
           ),
         ),
-      if (!_aggregateLoading && ranks.isEmpty && songs.isNotEmpty)
-        const SizedBox(height: 4),
-      if (songs.isNotEmpty) ...[
-        SectionTitle('全源热歌', trailing: '${songs.length} ${t('首')}'),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          itemCount: songs.length > 30 ? 30 : songs.length,
-          itemBuilder: (context, i) {
-            final entry = songs[i];
-            return MusicTile(
-              song: entry.song,
-              onTap: () => PlayerService.instance.playQueue(
-                songs.map((e) => e.song).toList(),
-                startIndex: i,
-              ),
-              trailing: Text(
-                entry.source,
-                style: TextStyle(fontSize: 10, color: AppPalette.muted(context)),
-              ),
-            );
-          },
-        ),
-      ],
     ];
   }
 
@@ -441,6 +499,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
               subtitle: '${rank.platform} · ${rank.group}',
               sheet: sheet,
               kind: MediaListKind.topList,
+              plugin: rank.plugin,
             ),
           )),
         ),
@@ -490,7 +549,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
           itemBuilder: (context, i) {
             final raw = data[i];
             if (raw is! Map) return const SizedBox.shrink();
-            final sheet = SheetItem.fromJson(Map<String, dynamic>.from(raw));
+            final sheet = SheetItem.fromJson(_withPlatform(raw, plugin.platform));
             return SizedBox(
               width: 124,
               child: SheetGridCard(
@@ -610,10 +669,11 @@ class _DiscoverPageState extends State<DiscoverPage> {
 }
 
 class _AggregateRank {
-  const _AggregateRank(this.sheet, this.platform, this.group);
+  const _AggregateRank(this.sheet, this.platform, this.group, this.plugin);
   final SheetItem sheet;
   final String platform;
   final String group;
+  final PluginRecord plugin;
 }
 
 class _AggregateSong {

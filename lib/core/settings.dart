@@ -159,7 +159,7 @@ class Settings extends ChangeNotifier {
     'downloadPath': '',
     'maxHistoryLen': 100,
     'themeMode': 'system',
-    'themeSeed': 0xFFFF6B5B,
+    'themeSeed': 0xFF37C08A,
     'backgroundPath': '',
     'backgroundOpacity': 0.18,
     'backgroundBlur': 0.0,

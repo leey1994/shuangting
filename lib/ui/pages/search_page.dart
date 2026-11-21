@@ -326,32 +326,6 @@ class _SearchPageState extends State<SearchPage> {
               },
             ),
           ),
-          if (plugins.length > 1 && _type != 'music' && _type != 'album')
-            SizedBox(
-              height: 40,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                itemCount: plugins.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, i) {
-                  final p = plugins[i];
-                  return TagChip(
-                    label: p.platform,
-                    selected: _selected.contains(p.platform),
-                    onTap: () {
-                      setState(() {
-                        if (_selected.contains(p.platform)) {
-                          _selected.remove(p.platform);
-                        } else {
-                          _selected.add(p.platform);
-                        }
-                      });
-                    },
-                  );
-                },
-              ),
-            ),
           const SizedBox(height: 4),
           Expanded(child: _buildBody(plugins)),
         ],
@@ -370,13 +344,17 @@ class _SearchPageState extends State<SearchPage> {
         final title = (json['title'] ?? json['name'] ?? '').toString().trim().toLowerCase();
         final artist = (json['artist'] ?? '').toString().trim().toLowerCase();
         if (title.isEmpty && artist.isEmpty) continue;
-        final key = '$title|$artist';
+        final key = _type == 'artist'
+            ? 'artist|$title'
+            : _type == 'sheet'
+                ? 'sheet|$title|$artist'
+                : '$title|$artist';
         final hit = byKey[key];
         if (hit != null) {
           hit.sources.add(source);
           continue;
         }
-        byKey[key] = _AggregatedResult(json, <String>{source}, rank++);
+        byKey[key] = _AggregatedResult(json, <String>{source}, rank++, plugin);
       }
     }
     final list = byKey.values.toList();
@@ -424,6 +402,70 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _aggregatedTile(_AggregatedResult entry, List<MusicItem> songs) {
     final source = entry.sources.join('/');
+    if (_type == 'artist') {
+      final artist = ArtistItem.fromJson(entry.raw);
+      return ListTile(
+        leading: ClipOval(child: CoverImage(path: artist.avatar, size: 48, radius: 24)),
+        title: Text(artist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          [if (artist.fans > 0) '${artist.fans} 粉丝', if (artist.worksNum > 0) '${artist.worksNum} 作品', source].join(' · '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 11, color: AppPalette.muted(context)),
+        ),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ArtistDetailPage(artist: artist))),
+      );
+    }
+    if (_type == 'sheet') {
+      final sheet = SheetItem.fromJson(entry.raw);
+      return ListTile(
+        leading: CoverImage(path: sheet.artwork, size: 48, radius: 12),
+        title: Text(sheet.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          [sheet.artist, sheet.worksNum > 0 ? '${sheet.worksNum} 首' : '', source].where((e) => e.isNotEmpty).join(' · '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 11, color: AppPalette.muted(context)),
+        ),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => MusicListDetailPage(
+            title: sheet.title,
+            artwork: sheet.artwork,
+            subtitle: sheet.artist,
+            description: sheet.description,
+            sheet: sheet,
+            kind: MediaListKind.sheet,
+          ),
+        )),
+      );
+    }
+    if (_type == 'lyric') {
+      final lyric = MusicItem.fromJson(entry.raw);
+      return ListTile(
+        leading: CoverImage(path: lyric.artwork, size: 48, radius: 12),
+        title: Text(lyric.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          [lyric.artist, lyric.album, source].where((e) => e.isNotEmpty).join(' · '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 11, color: AppPalette.muted(context)),
+        ),
+        trailing: TextButton(
+          onPressed: () => _applyLyric(entry.plugin, lyric),
+          child: const Tr('应用'),
+        ),
+        onTap: () async {
+          final current = PlayerService.instance.current;
+          if (current == null) {
+            showToast(context, '请先播放一首歌');
+            return;
+          }
+          if (await confirmDialog(context, '将「${lyric.title}」的歌词应用到「${current.title}」？')) {
+            await _applyLyric(entry.plugin, lyric);
+          }
+        },
+      );
+    }
     if (_type == 'album') {
       final album = AlbumItem.fromJson(entry.raw);
       return ListTile(
@@ -532,193 +574,14 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
-    // 单曲/专辑跨音源聚合：不按插件分段，按相关度合并成一个列表。
-    if (_type == 'music' || _type == 'album') return _buildAggregated();
-
-    final sections = <Widget>[];
-    for (final plugin in targets) {
-      final items = _results[plugin.platform] ?? const [];
-      final loading = _loading.contains(plugin.platform);
-      sections.add(Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
-        child: Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 8),
-            Text(plugin.platform, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            const SizedBox(width: 8),
-            Text(
-              loading ? t('正在搜索') : '${items.length} ${t('条')}',
-              style: TextStyle(fontSize: 11, color: AppPalette.muted(context)),
-            ),
-          ],
-        ),
-      ));
-      if (items.isEmpty && !loading) {
-        sections.add(Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: Text(t('没有结果'), style: TextStyle(fontSize: 12, color: AppPalette.muted(context))),
-        ));
-        continue;
-      }
-      final parsed = items.whereType<Map>().map((e) => MusicItem.fromJson(Map<String, dynamic>.from(e))).toList();
-      for (var itemIndex = 0; itemIndex < items.length; itemIndex++) {
-        final raw = items[itemIndex];
-        if (raw is! Map) continue;
-        final json = Map<String, dynamic>.from(raw);
-        switch (_type) {
-          case 'music':
-            final song = parsed[itemIndex];
-            sections.add(MusicTile(
-              song: song,
-              onTap: () {
-                final i = parsed.indexWhere((e) => e.key == song.key);
-                PlayerService.instance.playQueue(parsed, startIndex: i < 0 ? 0 : i);
-              },
-              onMore: () => showSongActions(context, song, contextSongs: parsed),
-            ));
-            break;
-          case 'album':
-            final album = AlbumItem.fromJson(json);
-            sections.add(ListTile(
-              leading: CoverImage(path: album.artwork, size: 48, radius: 12),
-              title: Text(album.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(
-                [album.artist, album.date, album.worksNum > 0 ? '${album.worksNum} 首' : ''].where((e) => e.isNotEmpty).join(' · '),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: AppPalette.muted(context)),
-              ),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => MusicListDetailPage(
-                  title: album.title,
-                  artwork: album.artwork,
-                  subtitle: album.artist,
-                  description: album.description,
-                  album: album,
-                  kind: MediaListKind.album,
-                ),
-              )),
-            ));
-            break;
-          case 'artist':
-            final artist = ArtistItem.fromJson(json);
-            sections.add(ListTile(
-              leading: ClipOval(child: CoverImage(path: artist.avatar, size: 48, radius: 24)),
-              title: Text(artist.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(
-                [if (artist.fans > 0) '${artist.fans} 粉丝', if (artist.worksNum > 0) '${artist.worksNum} 作品'].join(' · '),
-                style: TextStyle(fontSize: 11, color: AppPalette.muted(context)),
-              ),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ArtistDetailPage(artist: artist))),
-            ));
-            break;
-          case 'sheet':
-            final sheet = SheetItem.fromJson(json);
-            sections.add(ListTile(
-              leading: CoverImage(path: sheet.artwork, size: 48, radius: 12),
-              title: Text(sheet.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(
-                [sheet.artist, sheet.worksNum > 0 ? '${sheet.worksNum} 首' : ''].where((e) => e.isNotEmpty).join(' · '),
-                style: TextStyle(fontSize: 11, color: AppPalette.muted(context)),
-              ),
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => MusicListDetailPage(
-                  title: sheet.title,
-                  artwork: sheet.artwork,
-                  subtitle: sheet.artist,
-                  description: sheet.description,
-                  sheet: sheet,
-                  kind: MediaListKind.sheet,
-                ),
-              )),
-            ));
-            break;
-          case 'lyric':
-            final lyric = MusicItem.fromJson(json);
-            sections.add(ListTile(
-              leading: CoverImage(path: lyric.artwork, size: 48, radius: 12),
-              title: Text(lyric.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-              subtitle: Text(
-                [lyric.artist, lyric.album].where((e) => e.isNotEmpty).join(' · '),
-                style: TextStyle(fontSize: 11, color: AppPalette.muted(context)),
-              ),
-              trailing: TextButton(
-                onPressed: () => _applyLyric(plugin, lyric),
-                child: const Tr('应用'),
-              ),
-              onTap: () async {
-                final current = PlayerService.instance.current;
-                if (current == null) {
-                  showToast(context, '请先播放一首歌');
-                  return;
-                }
-                await showModalBottomSheet<void>(
-                  context: context,
-                  showDragHandle: true,
-                  builder: (context) => SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(lyric.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 8),
-                          Text('将这首歌的歌词应用到「${current.title}」', style: TextStyle(fontSize: 12, color: AppPalette.muted(context))),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                                _applyLyric(plugin, lyric);
-                              },
-                              child: const Tr('应用歌词'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ));
-            break;
-        }
-      }
-      sections.add(Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-        child: Center(
-          child: loading
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : (_ended[plugin.platform] == true
-                  ? Tr('没有更多了', style: TextStyle(fontSize: 11, color: AppPalette.muted(context)))
-                  : TextButton(
-                      onPressed: () => _search(reset: false, onlyPlatform: plugin.platform),
-                      child: const Tr('加载更多'),
-                    )),
-        ),
-      ));
-    }
-
-    final hasAny = _results.values.any((e) => e.isNotEmpty);
-    if (!hasAny) {
-      final stillLoading = _loading.isNotEmpty;
-      if (stillLoading) return const LoadingView(text: '正在搜索');
-      return EmptyView(icon: Icons.search_off_rounded, text: '没有找到相关结果');
-    }
-    return ListView(children: sections);
+    return _buildAggregated();
   }
 }
 
 class _AggregatedResult {
-  const _AggregatedResult(this.raw, this.sources, this.rank);
+  const _AggregatedResult(this.raw, this.sources, this.rank, this.plugin);
   final Map<String, dynamic> raw;
   final Set<String> sources;
   final int rank;
+  final PluginRecord plugin;
 }

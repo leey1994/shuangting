@@ -99,11 +99,16 @@ class MusicAudioHandler extends BaseAudioHandler {
     } else if (song.artwork.isNotEmpty && File(song.artwork).existsSync()) {
       artUri = Uri.file(song.artwork);
     }
+    final title = song.title.isEmpty ? '未知曲目' : song.title;
     return MediaItem(
       id: song.key,
-      title: song.title.isEmpty ? '未知曲目' : song.title,
+      title: title,
       artist: song.displayArtist,
       album: lyricLine ?? song.album,
+      // AVRCP/部分车机优先读 display* 字段；与 title/artist/album 保持一致。
+      displayTitle: title,
+      displaySubtitle: lyricLine ?? song.displayArtist,
+      displayDescription: song.album.isEmpty ? song.displayArtist : song.album,
       artUri: artUri,
       duration: song.duration > 0 ? Duration(seconds: song.duration) : null,
       extras: _safeExtras(song.toJson()),

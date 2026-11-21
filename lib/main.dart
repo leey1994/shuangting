@@ -33,8 +33,8 @@ Future<void> main() async {
     DownloadService.instance.load(),
     LocalLibrary.instance.load(),
   ]);
-  await PlayerService.instance.init();
-  await PlayerService.instance.setSpeed(Settings.instance.get<double>('playSpeed'));
+  // 先建立媒体会话（通知/蓝牙元数据），再初始化播放器：
+  // 否则冷启动自动播放的瞬间系统还没有 MediaSession，车机可能一直显示空信息。
   if (!kIsWeb && Platform.isAndroid) {
     try {
       await initMusicAudioService();
@@ -42,6 +42,8 @@ Future<void> main() async {
       debugPrint('[audio_service] init failed: $e');
     }
   }
+  await PlayerService.instance.init();
+  await PlayerService.instance.setSpeed(Settings.instance.get<double>('playSpeed'));
 
   if (!kIsWeb && Platform.isWindows) {
     await wm.windowManager.ensureInitialized();

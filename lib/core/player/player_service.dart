@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
@@ -26,6 +27,7 @@ class PlayerService extends ChangeNotifier {
 
   final AudioPlayer _player = AudioPlayer();
   final Random _random = Random();
+  AudioSession? _session;
 
   List<MusicItem> queue = [];
   int queueVersion = 0;
@@ -59,6 +61,7 @@ class PlayerService extends ChangeNotifier {
   }
 
   Future<void> init() async {
+    await _initAudioSession();
     await _player.setReleaseMode(ReleaseMode.stop);
     await _player.setAudioContext(AudioContextConfig(stayAwake: true).build());
     _player.onPositionChanged.listen((pos) {
@@ -93,6 +96,29 @@ class PlayerService extends ChangeNotifier {
     await restoreState(PrefStore.instance.getJson(_prefsState));
     if (queue.isNotEmpty && index >= 0 && Settings.instance.get<bool>('autoPlayOnStart')) {
       await playAt(index);
+    }
+  }
+
+  /// 音频会话由本应用统一配置（audio_service + audioplayers 同时存在时，二者
+  /// 都不会替对方做这件事）。缺少这一步时，部分机型/车机会把声音留在扬声器
+  /// 或不给媒体焦点，表现为「连上蓝牙没声音」。
+  Future<void> _initAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+      // 来电/其他应用打断：暂停（设置项 tempRemoteDuck 预留）。
+      session.interruptionEventStream.listen((event) {
+        if (event.begin && playing) {
+          pause();
+        }
+      });
+      // 拔耳机/断开蓝牙：暂停，避免声音突然外放。
+      session.becomingNoisyEventStream.listen((_) {
+        if (playing) pause();
+      });
+      _session = session;
+    } catch (e) {
+      debugPrint('[player] audio session init failed: $e');
     }
   }
 
@@ -135,7 +161,7 @@ class PlayerService extends ChangeNotifier {
     Future.delayed(const Duration(milliseconds: 300), () => _completionHandled = false);
     if (mode == PlayMode.repeatOne) {
       await seek(Duration.zero);
-      await _player.resume();
+      await resume();
     } else {
       await next(auto: true);
     }
@@ -191,6 +217,7 @@ class PlayerService extends ChangeNotifier {
       await _player.stop();
       await _player.setSourceUrl(resolved);
       await _player.setPlaybackRate(speed);
+      await _session?.setActive(true);
       await _player.resume();
       playing = true;
       _restorePositionIfNeeded(song, resolved);
@@ -276,9 +303,10 @@ class PlayerService extends ChangeNotifier {
   Future<void> toggle() async {
     if (current == null) return;
     if (playing) {
-      await _player.pause();
+      await pause();
     } else {
       if (_player.state == PlayerState.paused) {
+        await _session?.setActive(true);
         await _player.resume();
       } else {
         await playAt(index);
@@ -286,9 +314,15 @@ class PlayerService extends ChangeNotifier {
     }
   }
 
-  Future<void> pause() => _player.pause();
+  Future<void> pause() async {
+    await _player.pause();
+    await _session?.setActive(false);
+  }
 
-  Future<void> resume() => _player.resume();
+  Future<void> resume() async {
+    await _session?.setActive(true);
+    await _player.resume();
+  }
 
   Future<void> seek(Duration d) async {
     position = d;
@@ -312,7 +346,7 @@ class PlayerService extends ChangeNotifier {
     if (queue.isEmpty) return;
     if (mode == PlayMode.repeatOne && auto) {
       await seek(Duration.zero);
-      await _player.resume();
+      await resume();
       return;
     }
     if (mode == PlayMode.shuffle) {
@@ -333,7 +367,7 @@ class PlayerService extends ChangeNotifier {
       if (mode == PlayMode.repeatAll) {
         nextIndex = 0;
       } else if (auto) {
-        await _player.pause();
+        await pause();
         playing = false;
         _notifyPage();
         return;

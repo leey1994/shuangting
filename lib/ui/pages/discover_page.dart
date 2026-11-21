@@ -69,7 +69,10 @@ class _DiscoverPageState extends State<DiscoverPage> {
     if (_bootstrapping) return;
     _bootstrapping = true;
     try {
-      await PluginManager.instance.warmup(limit: 2);
+      // 首帧刚结束就创建 QuickJS 运行时会卡住主线程；留出空档再开始聚合。
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      if (!mounted) return;
+      await PluginManager.instance.warmup(limit: 1);
       final plugins = _plugins;
       if (plugins.isEmpty) return;
       if (_platform == null || !plugins.any((e) => e.platform == _platform)) {
@@ -161,7 +164,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
     _aggregateLoaded = false;
     if (mounted) setState(() => _aggregateLoading = true);
 
-    await PluginManager.instance.warmup(limit: 2);
+    await PluginManager.instance.warmup(limit: 1);
     if (generation != _aggregateGeneration) return;
     // 榜单聚合只取前 6 个音源：QuickJS 运行时创建发生在主 isolate，
     // 插件过多时逐个创建会长时间阻塞首帧（白屏），其余音源按需再拉。
@@ -186,8 +189,8 @@ class _DiscoverPageState extends State<DiscoverPage> {
     _aggregateRankSeen.clear();
     _aggregateSongSeen.clear();
 
-    // 首批只拉前两个音源，先让界面有内容；后续源在事件循环空档逐批补齐。
-    final initial = plugins.take(2).toList();
+    // 首批只拉一个音源，后续源在事件循环空档逐批补齐，避免首屏长时间阻塞。
+    final initial = plugins.take(1).toList();
     for (var i = 0; i < initial.length; i++) {
       await _mergeAggregatePlugin(initial[i], i < 3, generation);
       if (generation != _aggregateGeneration) return;
@@ -208,7 +211,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   ) async {
     for (var i = 0; i < plugins.length; i++) {
       // 留出事件循环，避免连续 QuickJS / 网络请求让界面失去响应。
-      await Future<void>.delayed(const Duration(milliseconds: 220));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
       if (generation != _aggregateGeneration) return;
       await _mergeAggregatePlugin(plugins[i], startIndex + i < 3, generation);
       if (generation != _aggregateGeneration) return;

@@ -20,6 +20,9 @@ import 'core/plugin/plugin_manager.dart';
 import 'core/settings.dart';
 
 Future<void> _playDailyOnStart() async {
+  // 让首帧与首页渲染先完成：插件运行时创建和网络请求都发生在主 isolate，
+  // 开机后立即做会阻塞 UI，偶发 ANR。
+  await Future<void>.delayed(const Duration(seconds: 2));
   await DailyRecommendation.instance.ensureToday();
   final songs = DailyRecommendation.instance.songs;
   if (songs.isEmpty || PlayerService.instance.playing) return;

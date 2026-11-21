@@ -89,11 +89,11 @@ class DailyRecommendation extends ChangeNotifier {
   Future<List<MusicItem>> _fetchHotSongs() async {
     final plugins = PluginManager.instance.enabled
         .where((e) => e.methods.contains('getTopLists'))
-        .take(3)
+        .take(2)
         .toList();
     if (plugins.isEmpty) return const [];
     try {
-      await PluginManager.instance.warmup(limit: 2).timeout(const Duration(seconds: 6));
+      await PluginManager.instance.warmup(limit: 1).timeout(const Duration(seconds: 6));
     } catch (_) {}
     final result = <MusicItem>[];
     for (final plugin in plugins) {

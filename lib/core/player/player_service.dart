@@ -27,7 +27,6 @@ class PlayerService extends ChangeNotifier {
 
   final AudioPlayer _player = AudioPlayer();
   final Random _random = Random();
-  AudioSession? _session;
 
   List<MusicItem> queue = [];
   int queueVersion = 0;
@@ -99,24 +98,16 @@ class PlayerService extends ChangeNotifier {
     }
   }
 
-  /// 音频会话由本应用统一配置（audio_service + audioplayers 同时存在时，二者
-  /// 都不会替对方做这件事）。缺少这一步时，部分机型/车机会把声音留在扬声器
-  /// 或不给媒体焦点，表现为「连上蓝牙没声音」。
+  /// 只配置音频会话（usage=media），焦点仍交给 audioplayers 自己管理：
+  /// 两边都 requestAudioFocus 会互相触发打断事件，导致刚点播放就被暂停。
   Future<void> _initAudioSession() async {
     try {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
-      // 来电/其他应用打断：暂停（设置项 tempRemoteDuck 预留）。
-      session.interruptionEventStream.listen((event) {
-        if (event.begin && playing) {
-          pause();
-        }
-      });
       // 拔耳机/断开蓝牙：暂停，避免声音突然外放。
       session.becomingNoisyEventStream.listen((_) {
         if (playing) pause();
       });
-      _session = session;
     } catch (e) {
       debugPrint('[player] audio session init failed: $e');
     }
@@ -217,7 +208,6 @@ class PlayerService extends ChangeNotifier {
       await _player.stop();
       await _player.setSourceUrl(resolved);
       await _player.setPlaybackRate(speed);
-      await _session?.setActive(true);
       await _player.resume();
       playing = true;
       _restorePositionIfNeeded(song, resolved);
@@ -306,23 +296,16 @@ class PlayerService extends ChangeNotifier {
       await pause();
     } else {
       if (_player.state == PlayerState.paused) {
-        await _session?.setActive(true);
-        await _player.resume();
+          await _player.resume();
       } else {
         await playAt(index);
       }
     }
   }
 
-  Future<void> pause() async {
-    await _player.pause();
-    await _session?.setActive(false);
-  }
+  Future<void> pause() => _player.pause();
 
-  Future<void> resume() async {
-    await _session?.setActive(true);
-    await _player.resume();
-  }
+  Future<void> resume() => _player.resume();
 
   Future<void> seek(Duration d) async {
     position = d;

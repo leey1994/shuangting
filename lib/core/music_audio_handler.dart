@@ -5,6 +5,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 
 import 'settings.dart';
+import 'library_store.dart';
 import 'lyric.dart';
 import 'models.dart';
 import 'player/player_service.dart';
@@ -13,6 +14,7 @@ class MusicAudioHandler extends BaseAudioHandler {
   MusicAudioHandler() {
     PlayerService.instance.pageListenable.addListener(_sync);
     PlayerService.instance.progressListenable.addListener(_sync);
+    LibraryStore.instance.addListener(_sync);
     _sync();
   }
 
@@ -23,6 +25,7 @@ class MusicAudioHandler extends BaseAudioHandler {
   int? _lastQueueLength;
   int? _lastQueueVersion;
   String? _lastLyricLine;
+  bool? _lastFavorite;
   DateTime _lastSyncAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   void _sync() {
@@ -39,6 +42,7 @@ class MusicAudioHandler extends BaseAudioHandler {
 
     final now = DateTime.now();
     final mediaId = song?.key;
+    final favorite = song != null && LibraryStore.instance.isFavorite(song);
     final lyricLine = Settings.instance.get<bool>('bluetoothLyric') ? _lyricAt(player) : null;
     final queueChanged = _lastQueueVersion != player.queueVersion;
     final changed = _lastPlaying != isPlaying ||
@@ -47,7 +51,8 @@ class MusicAudioHandler extends BaseAudioHandler {
         _lastProcessing != processing ||
         _lastQueueLength != player.queue.length ||
         queueChanged ||
-        _lastLyricLine != lyricLine;
+        _lastLyricLine != lyricLine ||
+        _lastFavorite != favorite;
     if (!changed && now.difference(_lastSyncAt) < const Duration(seconds: 2)) return;
     _lastSyncAt = now;
     _lastPlaying = isPlaying;
@@ -57,6 +62,7 @@ class MusicAudioHandler extends BaseAudioHandler {
     _lastQueueLength = player.queue.length;
     _lastQueueVersion = player.queueVersion;
     _lastLyricLine = lyricLine;
+    _lastFavorite = favorite;
 
     if (song != null) {
       mediaItem.add(_mediaItem(song, lyricLine: lyricLine));
@@ -68,6 +74,11 @@ class MusicAudioHandler extends BaseAudioHandler {
         MediaControl.skipToPrevious,
         isPlaying ? MediaControl.pause : MediaControl.play,
         MediaControl.skipToNext,
+        MediaControl.custom(
+          androidIcon: favorite ? 'drawable/ic_favorite' : 'drawable/ic_favorite_border',
+          label: favorite ? '取消喜欢' : '喜欢',
+          name: 'toggleFavorite',
+        ),
       ],
       systemActions: const {MediaAction.seek},
       androidCompactActionIndices: const [0, 1, 2],
@@ -118,6 +129,14 @@ class MusicAudioHandler extends BaseAudioHandler {
   Map<String, dynamic> _safeExtras(Map<String, dynamic> raw) => raw.map(
         (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
       );
+
+  @override
+  Future<void> customAction(String name, [Map<String, dynamic>? extras]) async {
+    if (name == 'toggleFavorite') {
+      final song = PlayerService.instance.current;
+      if (song != null) await LibraryStore.instance.toggleFavorite(song);
+    }
+  }
 
   @override
   Future<void> play() => PlayerService.instance.toggle();

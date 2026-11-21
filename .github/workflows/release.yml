@@ -31,10 +31,7 @@ jobs:
 
       - name: Build split APKs
         run: |
-          VERSION=$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
-          if [[ "$GITHUB_REF_NAME" == v* ]]; then VERSION="${GITHUB_REF_NAME#v}"; fi
           flutter build apk --release --split-per-abi \
-            --build-name="$VERSION" --build-number="${{ github.run_number }}" \
             --split-debug-info=build/symbols/android --obfuscate
 
       - name: Upload to GitHub Release
@@ -45,3 +42,4 @@ jobs:
             build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
             build/app/outputs/flutter-apk/app-x86_64-release.apk
           generate_release_notes: true
+          overwrite_files: true

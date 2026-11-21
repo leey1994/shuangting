@@ -107,47 +107,78 @@ class _PlayerPageState extends State<PlayerPage> with SingleTickerProviderStateM
                         ],
                       );
                     }
-                    // 车机/横屏：左侧固定封面，右侧歌词和状态，底部共享进度与控制。
+                    // 车机/横屏：左侧大封面 + 音源标记，右侧歌曲信息与大字号歌词，
+                    // 底部一整条进度/主控区，接近主流车机播放器的双栏布局。
                     return Column(
                       children: [
                         _TopBar(
                           song: song,
-                          showLyric: false,
-                          onToggleLyric: () => setState(() => _showLyric = !_showLyric),
+                          showLyric: true,
+                          onToggleLyric: () {},
                         ),
                         Expanded(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 22),
+                            padding: const EdgeInsets.symmetric(horizontal: 28),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 Expanded(
                                   flex: 4,
-                                  child: Center(
-                                    child: _CoverView(
-                                      artwork: song.artwork,
-                                      spin: _spin,
-                                      availableSize: Size(constraints.maxWidth * 0.45, constraints.maxHeight - 90),
-                                    ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _CoverView(
+                                        artwork: song.artwork,
+                                        spin: _spin,
+                                        availableSize: Size(constraints.maxWidth * 0.4, constraints.maxHeight - 100),
+                                        maxSize: math.min((constraints.maxHeight - 90) * 0.72, 420),
+                                      ),
+                                      const SizedBox(height: 14),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
+                                          borderRadius: BorderRadius.circular(30),
+                                        ),
+                                        child: Text(
+                                          song.platform == 'local' ? t('本地音乐') : '${t('来自')} ${song.platform}',
+                                          style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.primary),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(width: 26),
+                                const SizedBox(width: 30),
                                 Expanded(
                                   flex: 5,
-                                  child: Column(
-                                    children: [
-                                      _InfoRow(song: song),
-                                      const SizedBox(height: 10),
-                                      Expanded(child: _LyricView(doc: p.lyric, loading: p.lyricLoading)),
-                                    ],
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.42),
+                                      borderRadius: BorderRadius.circular(26),
+                                    ),
+                                    padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _InfoRow(song: song, wide: true),
+                                        const Divider(height: 20),
+                                        Expanded(child: _LyricView(doc: p.lyric, loading: p.lyricLoading, large: true)),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                        const _SeekBar(),
-                        _Controls(showLyric: true, onToggleLyric: () {}),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 28),
+                          child: const _SeekBar(),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 28),
+                          child: _Controls(showLyric: true, compact: true, onToggleLyric: () {}),
+                        ),
                         const SizedBox(height: 8),
                       ],
                     );
@@ -247,15 +278,16 @@ class _TopBar extends StatelessWidget {
 }
 
 class _CoverView extends StatelessWidget {
-  const _CoverView({required this.artwork, required this.spin, this.availableSize});
+  const _CoverView({required this.artwork, required this.spin, this.availableSize, this.maxSize = 320});
   final String artwork;
   final Animation<double> spin;
   final Size? availableSize;
+  final double maxSize;
 
   @override
   Widget build(BuildContext context) {
     final available = availableSize ?? MediaQuery.sizeOf(context);
-    final size = math.min(math.min(available.width * 0.72, available.height - 36), 320.0).clamp(110.0, 320.0);
+    final size = math.min(math.min(available.width * 0.72, available.height - 36), maxSize).clamp(110.0, maxSize);
     return Center(
       child: AnimatedBuilder(
         animation: spin,
@@ -317,9 +349,10 @@ class _CoverView extends StatelessWidget {
 }
 
 class _LyricView extends StatefulWidget {
-  const _LyricView({super.key, required this.doc, required this.loading});
+  const _LyricView({super.key, required this.doc, required this.loading, this.large = false});
   final LyricDoc? doc;
   final bool loading;
+  final bool large;
 
   @override
   State<_LyricView> createState() => _LyricViewState();
@@ -329,7 +362,7 @@ class _LyricViewState extends State<_LyricView> {
   final ScrollController _controller = ScrollController();
   int _lastIndex = -1;
   double _lastUserScroll = 0;
-  static const _lineHeight = 52.0;
+  double get _lineHeight => widget.large ? 64.0 : 52.0;
 
   @override
   void initState() {
@@ -419,7 +452,7 @@ class _LyricViewState extends State<_LyricView> {
                   final line = doc.lines[i];
                   final active = i == idx;
                   final sung = i < idx;
-                  final fontSize = MediaQuery.textScalerOf(context).scale(active ? 19 : 14.5);
+                  final fontSize = MediaQuery.textScalerOf(context).scale(active ? (widget.large ? 25 : 19) : (widget.large ? 17 : 14.5));
                   return GestureDetector(
                     onTap: () {
                       if (!doc.synced) return;
@@ -452,37 +485,47 @@ class _LyricViewState extends State<_LyricView> {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.song});
+  const _InfoRow({required this.song, this.wide = false});
   final MusicItem song;
+  final bool wide;
 
   @override
   Widget build(BuildContext context) {
-    final lib = LibraryStore.instance;
-    final isFav = lib.isFavorite(song);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 16, 0),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-                const SizedBox(height: 4),
-                Text(song.displayArtist, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: AppPalette.muted(context))),
-              ],
-            ),
+    return ListenableBuilder(
+      listenable: LibraryStore.instance,
+      builder: (context, _) {
+        final lib = LibraryStore.instance;
+        final isFav = lib.isFavorite(song);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 16, 0),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: wide ? 26 : 22, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+                    const SizedBox(height: 4),
+                    Text(song.displayArtist, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: wide ? 14 : 13, color: AppPalette.muted(context))),
+                    if (wide) ...[
+                      const SizedBox(height: 2),
+                      Text(song.displayAlbum, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: AppPalette.muted(context))),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () => lib.toggleFavorite(song),
+                icon: Icon(isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: isFav ? Theme.of(context).colorScheme.primary : null),
+              ),
+              IconButton(
+                onPressed: () => showSongActions(context, song),
+                icon: const Icon(Icons.more_horiz_rounded),
+              ),
+            ],
           ),
-          IconButton(
-            onPressed: () => lib.toggleFavorite(song),
-            icon: Icon(isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded, color: isFav ? Theme.of(context).colorScheme.primary : null),
-          ),
-          IconButton(
-            onPressed: () => showSongActions(context, song),
-            icon: const Icon(Icons.more_horiz_rounded),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -563,9 +606,10 @@ class _SeekBarState extends State<_SeekBar> {
 }
 
 class _Controls extends StatefulWidget {
-  const _Controls({required this.showLyric, required this.onToggleLyric});
+  const _Controls({required this.showLyric, required this.onToggleLyric, this.compact = false});
   final bool showLyric;
   final VoidCallback onToggleLyric;
+  final bool compact;
 
   @override
   State<_Controls> createState() => _ControlsState();
@@ -650,33 +694,35 @@ class _ControlsState extends State<_Controls> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              TextButton.icon(
-                onPressed: () => _showSleepTimer(context),
-                icon: const Icon(Icons.bedtime_outlined, size: 18),
-                label: Text(
-                  p.sleepRemaining == null ? t('定时关闭') : _fmtLeft(p.sleepRemaining!),
-                  style: const TextStyle(fontSize: 11),
+          if (!widget.compact) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _showSleepTimer(context),
+                  icon: const Icon(Icons.bedtime_outlined, size: 18),
+                  label: Text(
+                    p.sleepRemaining == null ? t('定时关闭') : _fmtLeft(p.sleepRemaining!),
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  style: TextButton.styleFrom(foregroundColor: AppPalette.muted(context)),
                 ),
-                style: TextButton.styleFrom(foregroundColor: AppPalette.muted(context)),
-              ),
-              TextButton.icon(
-                onPressed: widget.onToggleLyric,
-                icon: Icon(widget.showLyric ? Icons.album_outlined : Icons.lyrics_outlined, size: 18),
-                label: Text(widget.showLyric ? t('封面') : t('歌词'), style: const TextStyle(fontSize: 11)),
-                style: TextButton.styleFrom(foregroundColor: AppPalette.muted(context)),
-              ),
-              TextButton.icon(
-                onPressed: () => _showLyricOffset(context),
-                icon: const Icon(Icons.tune_rounded, size: 18),
-                label: Text('${t('歌词偏移')} ${MediaCache.instance.lyricOffset(p.currentKey ?? '').toStringAsFixed(1)}s', style: const TextStyle(fontSize: 11)),
-                style: TextButton.styleFrom(foregroundColor: AppPalette.muted(context)),
-              ),
-            ],
-          ),
+                TextButton.icon(
+                  onPressed: widget.onToggleLyric,
+                  icon: Icon(widget.showLyric ? Icons.album_outlined : Icons.lyrics_outlined, size: 18),
+                  label: Text(widget.showLyric ? t('封面') : t('歌词'), style: const TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(foregroundColor: AppPalette.muted(context)),
+                ),
+                TextButton.icon(
+                  onPressed: () => _showLyricOffset(context),
+                  icon: const Icon(Icons.tune_rounded, size: 18),
+                  label: Text('${t('歌词偏移')} ${MediaCache.instance.lyricOffset(p.currentKey ?? '').toStringAsFixed(1)}s', style: const TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(foregroundColor: AppPalette.muted(context)),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

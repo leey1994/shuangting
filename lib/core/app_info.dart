@@ -13,6 +13,8 @@ class AppInfo {
   static const releasesUrl = '$repoUrl/releases';
   static const issuesUrl = '$repoUrl/issues';
   static const homepageUrl = 'https://leey1994.github.io/shuangting/';
+  static const changelogUrl =
+      'https://raw.githubusercontent.com/$repoOwner/$repoName/main/CHANGELOG.md';
   static const latestReleaseApi =
       'https://api.github.com/repos/leey1994/shuangting/releases/latest';
 

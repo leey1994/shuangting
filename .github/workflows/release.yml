@@ -40,7 +40,9 @@ jobs:
       # 并附上功能一览，避免每次手写更新日志。
       - name: Generate release notes
         run: |
-          if [ "${GITHUB_REF_NAME}" = "v2.0" ]; then
+          if [ "${GITHUB_REF_NAME}" = "v2.0.1" ]; then
+            cp docs/RELEASE_NOTES_V2.0.1.md release_notes.md
+          elif [ "${GITHUB_REF_NAME}" = "v2.0" ]; then
             cp docs/RELEASE_NOTES.md release_notes.md
           else
             {

@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart' hide Text;
+import 'package:http/http.dart' as http;
 import '../widgets/l10n_text.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -131,64 +134,153 @@ class AboutPage extends StatelessWidget {
   }
 }
 
-class ChangelogPage extends StatelessWidget {
+class ChangelogPage extends StatefulWidget {
   const ChangelogPage({super.key});
 
-  static const entries = <(String, List<String>)>[
-    (
-      '1.1.0',
-      [
-        '新增：应用内在线更新（GitHub Releases）',
-        '新增：关于页与作者信息',
-        '新增：项目静态主页',
-        '修复：语言切换后部分界面不刷新',
-        '修复：浅色模式下部分配色对比度不足',
-        '优化：插件较多时不再长时间白屏',
-      ],
-    ),
-    (
-      '1.0.0',
-      [
-        '首个公开版本：插件音源、聚合榜单、播放与歌词、下载、本地扫描、备份',
-      ],
-    ),
-  ];
+  @override
+  State<ChangelogPage> createState() => _ChangelogPageState();
+}
+
+class _ChangelogPageState extends State<ChangelogPage> {
+  static List<(String, List<String>)>? _cached;
+  List<(String, List<String>)>? _entries = _cached;
+  String? _error;
+  bool _loading = _cached == null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_cached == null) _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await http
+          .get(Uri.parse(AppInfo.changelogUrl))
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode != 200) throw StateError('HTTP ${res.statusCode}');
+      final parsed = _parse(utf8.decode(res.bodyBytes));
+      if (parsed.isEmpty) throw StateError('日志为空');
+      _cached = parsed;
+      if (mounted) setState(() {
+        _entries = parsed;
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() {
+        _error = '$e';
+        _loading = false;
+      });
+    }
+  }
+
+  /// 直接解析仓库里的 CHANGELOG.md：## 标题为版本，随后 - / * 为条目。
+  static List<(String, List<String>)> _parse(String text) {
+    final result = <(String, List<String>)>[];
+    List<String>? current;
+    final newline = String.fromCharCode(10);
+    for (final raw in text.split(newline)) {
+      final line = raw.trimRight();
+      if (line.startsWith('## ')) {
+        current = <String>[];
+        result.add((line.substring(3).trim(), current));
+      } else if (current != null &&
+          (line.startsWith('- ') || line.startsWith('* '))) {
+        current.add(line.substring(2).trim());
+      }
+    }
+    return result;
+  }
+
+  static bool _isCurrent(String heading) {
+    var h = heading.toLowerCase();
+    if (h.startsWith('v')) h = h.substring(1);
+    final version = AppInfo.version.toLowerCase();
+    return h == version || h.startsWith('$version ');
+  }
 
   @override
   Widget build(BuildContext context) {
+    final entries = _entries;
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(title: const Tr('版本日志')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-        children: [
-          for (final entry in entries) ...[
-            Row(
-              children: [
-                Text('v${entry.$1}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                if (entry.$1 == AppInfo.version) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text('当前', style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary)),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            for (final line in entry.$2)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text('• $line', style: TextStyle(fontSize: 12.5, height: 1.45, color: AppPalette.muted(context))),
-              ),
-            const SizedBox(height: 18),
-          ],
+      appBar: AppBar(
+        title: const Tr('版本日志'),
+        actions: [
+          IconButton(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: '刷新',
+          ),
         ],
       ),
+      body: _loading
+          ? const LoadingView(text: '正在获取版本日志…')
+          : entries == null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('版本日志加载失败：$_error',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 12, color: AppPalette.muted(context))),
+                        const SizedBox(height: 12),
+                        FilledButton.icon(
+                          onPressed: _load,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('重试'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text('实时来自 GitHub CHANGELOG.md',
+                            style: TextStyle(fontSize: 11, color: AppPalette.muted(context))),
+                      ),
+                      for (final entry in entries) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(entry.$1,
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                            ),
+                            if (_isCurrent(entry.$1))
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text('当前',
+                                    style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.primary)),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        for (final line in entry.$2)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text('• $line',
+                                style: TextStyle(fontSize: 12.5, height: 1.45, color: AppPalette.muted(context))),
+                          ),
+                        const SizedBox(height: 18),
+                      ],
+                    ],
+                  ),
+                ),
     );
   }
 }
